@@ -8,12 +8,16 @@ import workspacesRouter from "./routes/workspaces";
 import messagesRouter from "./routes/messages";
 import telnyxWebhook from "./routes/webhooks/telnyx";
 import resendWebhook from "./routes/webhooks/resend";
+import mailgunWebhook from "./routes/webhooks/mailgun";
 import cron from "./routes/cron";
 
 const app = new Hono();
 
 app.use("*", cors({
-  origin: process.env.APP_URL ?? "http://localhost:3002",
+  origin: [
+    process.env.APP_URL ?? "http://localhost:3002",
+    "https://guacwithme.ngrok.dev",
+  ],
   credentials: true,
 }));
 
@@ -25,6 +29,7 @@ app.route("/api/workspaces", workspacesRouter);
 app.route("/api/messages", messagesRouter);
 app.route("/api/webhooks/telnyx", telnyxWebhook);
 app.route("/api/webhooks/resend", resendWebhook);
+app.route("/api/webhooks/mailgun", mailgunWebhook);
 app.route("/api/cron", cron);
 
 serve({ fetch: app.fetch, port: 3003 }, (info) => {

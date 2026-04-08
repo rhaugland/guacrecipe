@@ -1,4 +1,4 @@
-export type Channel = "sms" | "email";
+export type Channel = "sms" | "email" | "both";
 
 export type User = {
   id: string;

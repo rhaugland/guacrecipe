@@ -12,7 +12,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
-export const channelEnum = pgEnum("channel", ["sms", "email"]);
+export const channelEnum = pgEnum("channel", ["sms", "email", "both"]);
 export const roleEnum = pgEnum("role", ["admin", "member"]);
 export const conversationStatusEnum = pgEnum("conversation_status", ["active", "expired"]);
 export const deliveryStatusEnum = pgEnum("delivery_status", ["delivered", "queued", "pending", "failed"]);

@@ -1,21 +1,50 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "../../lib/api-client";
+import { setSessionToken } from "../../lib/api-client";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [method, setMethod] = useState<"email" | "phone">("email");
   const [value, setValue] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
+  const [isReturning, setIsReturning] = useState(false);
+  const checkTimer = { current: null as ReturnType<typeof setTimeout> | null };
+
+  const checkUser = (val: string) => {
+    setValue(val);
+    setIsReturning(false);
+    if (checkTimer.current) clearTimeout(checkTimer.current);
+    if (!val) return;
+    checkTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/auth/check?${method}=${encodeURIComponent(val)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setIsReturning(data.exists);
+        }
+      } catch {}
+    }, 400);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     try {
-      await api.auth.requestMagicLink(
+      const result = await api.auth.requestMagicLink(
         method === "email" ? { email: value } : { phone: value }
-      );
-      setSent(true);
+      ) as { success: boolean; token?: string; redirect?: string };
+
+      if (result.token) {
+        // Returning user — instant login
+        setSessionToken(result.token);
+        router.push(result.redirect ?? "/dashboard");
+      } else {
+        // New user — magic link sent
+        setSent(true);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     }
@@ -69,7 +98,7 @@ export default function LoginPage() {
           <input
             type={method === "email" ? "email" : "tel"}
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onChange={(e) => checkUser(e.target.value)}
             placeholder={method === "email" ? "you@example.com" : "+1 555 123 4567"}
             className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:border-green-primary"
             required
@@ -79,7 +108,7 @@ export default function LoginPage() {
             type="submit"
             className="w-full mt-4 py-3 bg-green-primary text-white rounded-lg font-medium hover:bg-green-primary/90 transition-colors"
           >
-            Send magic link
+            {isReturning ? "Log in" : "Send magic link"}
           </button>
         </form>
       </div>

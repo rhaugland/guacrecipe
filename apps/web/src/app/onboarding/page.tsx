@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "../../lib/api-client";
 import { useAuth } from "../../hooks/useAuth";
@@ -27,12 +27,19 @@ const TIMING_OPTIONS = [
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [name, setName] = useState("");
-  const [email, setEmail] = useState(user?.email ?? "");
-  const [phone, setPhone] = useState(user?.phone ?? "");
-  const [preferredChannel, setPreferredChannel] = useState<"sms" | "email">("email");
-  const [timings, setTimings] = useState<string[]>(["2_weeks", "1_week", "3_days", "2_days", "day_of"]);
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+
+  useEffect(() => {
+    if (user) {
+      if (user.email && !email) setEmail(user.email);
+      if (user.phone && !phone) setPhone(user.phone);
+    }
+  }, [user]);
+  const [preferredChannel, setPreferredChannel] = useState<"sms" | "email" | "both">("email");
+  const [timings, setTimings] = useState<string[]>([]);
   const [workingHoursStart, setWorkingHoursStart] = useState("09:00");
   const [workingHoursEnd, setWorkingHoursEnd] = useState("17:00");
   const [timezone, setTimezone] = useState("America/New_York");
@@ -96,12 +103,12 @@ export default function OnboardingPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Preferred communication</label>
             <div className="flex gap-2">
-              {(["email", "sms"] as const).map((ch) => (
+              {(["email", "sms", "both"] as const).map((ch) => (
                 <button key={ch} type="button" onClick={() => setPreferredChannel(ch)}
                   className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
                     preferredChannel === ch ? "bg-green-primary text-white" : "bg-green-light text-green-primary"
                   }`}>
-                  {ch === "sms" ? "Text" : "Email"}
+                  {ch === "sms" ? "Text" : ch === "both" ? "Both" : "Email"}
                 </button>
               ))}
             </div>
@@ -122,7 +129,8 @@ export default function OnboardingPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Working hours</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Working hours</label>
+            <p className="text-xs text-gray-400 mb-2">You won't receive notifications outside these hours</p>
             <div className="grid grid-cols-2 gap-4 mb-3">
               <div>
                 <label className="text-xs text-gray-500">Start</label>

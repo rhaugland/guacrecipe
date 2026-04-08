@@ -1,6 +1,8 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY
+  ? new Resend(process.env.RESEND_API_KEY)
+  : null;
 const TELNYX_API_KEY = process.env.TELNYX_API_KEY;
 const TELNYX_PHONE = process.env.TELNYX_PHONE_NUMBER;
 const GUAC_EMAIL = process.env.GUAC_EMAIL_ADDRESS;
@@ -26,8 +28,16 @@ export function formatWorkingHoursAck(input: {
   return `${input.recipientName} is outside working hours. They'll receive this at ${timeStr}.`;
 }
 
+function normalizePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  return phone.startsWith("+") ? phone : `+${digits}`;
+}
+
 export async function sendSms(to: string, body: string): Promise<boolean> {
   try {
+    const normalized = normalizePhone(to);
     const response = await fetch("https://api.telnyx.com/v2/messages", {
       method: "POST",
       headers: {
@@ -36,10 +46,14 @@ export async function sendSms(to: string, body: string): Promise<boolean> {
       },
       body: JSON.stringify({
         from: TELNYX_PHONE,
-        to,
+        to: normalized,
         text: body,
       }),
     });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      console.error("[delivery] Telnyx SMS failed:", JSON.stringify(err));
+    }
     return response.ok;
   } catch {
     return false;
@@ -54,6 +68,10 @@ export async function sendEmail(to: string, subject: string, body: string, reply
       headers["References"] = replyToMessageId;
     }
 
+    if (!resend) {
+      console.warn("[delivery] Resend not configured, skipping email send");
+      return false;
+    }
     await resend.emails.send({
       from: `Guac <${GUAC_EMAIL}>`,
       to,
@@ -68,8 +86,9 @@ export async function sendEmail(to: string, subject: string, body: string, reply
 }
 
 export async function deliver(input: {
-  channel: "sms" | "email";
-  to: string;
+  channel: "sms" | "email" | "both";
+  toPhone?: string;
+  toEmail?: string;
   senderName: string;
   workspaceName: string;
   body: string;
@@ -81,10 +100,19 @@ export async function deliver(input: {
     body: input.body,
   });
 
-  if (input.channel === "sms") {
-    return sendSms(input.to, formatted);
-  } else {
-    const subject = `Message from ${input.senderName} — ${input.workspaceName}`;
-    return sendEmail(input.to, subject, formatted, `<conv-${input.conversationId}@guac.app>`);
+  const subject = `Message from ${input.senderName} — ${input.workspaceName}`;
+  const messageId = `<conv-${input.conversationId}@guac.app>`;
+
+  if (input.channel === "both") {
+    const results = await Promise.all([
+      input.toEmail ? sendEmail(input.toEmail, subject, formatted, messageId) : Promise.resolve(false),
+      input.toPhone ? sendSms(input.toPhone, formatted) : Promise.resolve(false),
+    ]);
+    return results.some(Boolean);
+  } else if (input.channel === "sms" && input.toPhone) {
+    return sendSms(input.toPhone, formatted);
+  } else if (input.channel === "email" && input.toEmail) {
+    return sendEmail(input.toEmail, subject, formatted, messageId);
   }
+  return false;
 }

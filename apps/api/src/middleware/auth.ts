@@ -11,7 +11,9 @@ type AuthEnv = {
 };
 
 export const requireAuth = createMiddleware<AuthEnv>(async (c, next) => {
-  const token = getCookie(c, "session");
+  const authHeader = c.req.header("Authorization");
+  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  const token = bearerToken ?? getCookie(c, "session");
   if (!token) return c.json({ error: "Unauthorized" }, 401);
 
   const [session] = await db.select().from(sessions).where(

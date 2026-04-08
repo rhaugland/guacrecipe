@@ -275,12 +275,11 @@ async function routeMessage(
   const withinHours = isWithinWorkingHours(recipientConfig, now);
   const notificationsOn = recipient.notificationsEnabled ?? true;
 
-  const recipientContact = recipient.preferredChannel === "sms" ? recipient.phone! : recipient.email!;
-
   if (withinHours && notificationsOn) {
     const success = await deliver({
       channel: recipient.preferredChannel ?? "email",
-      to: recipientContact,
+      toEmail: recipient.email ?? undefined,
+      toPhone: recipient.phone ?? undefined,
       senderName: sender.name ?? "Someone",
       workspaceName: workspace.name,
       body,

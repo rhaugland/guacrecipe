@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { requireAuth } from "../middleware/auth";
-import { db, users } from "@guac/db";
-import { eq } from "drizzle-orm";
+import { db, users, workspaceMembers } from "@guac/db";
+import { eq, and } from "drizzle-orm";
 
 const onboarding = new Hono();
 
@@ -19,12 +19,53 @@ onboarding.post("/", requireAuth, async (c) => {
     return c.json({ error: "Both email and phone are required" }, 400);
   }
 
+  // Merge any placeholder accounts that were added to workspaces by the other contact method
+  if (email) {
+    const [placeholder] = await db.select().from(users).where(
+      and(eq(users.email, email))
+    );
+    if (placeholder && placeholder.id !== userId) {
+      // Move their workspace memberships to the real user
+      const memberships = await db.select().from(workspaceMembers).where(eq(workspaceMembers.userId, placeholder.id));
+      for (const m of memberships) {
+        const [existing] = await db.select().from(workspaceMembers).where(
+          and(eq(workspaceMembers.workspaceId, m.workspaceId), eq(workspaceMembers.userId, userId))
+        );
+        if (!existing) {
+          await db.update(workspaceMembers).set({ userId }).where(eq(workspaceMembers.id, m.id));
+        } else {
+          await db.delete(workspaceMembers).where(eq(workspaceMembers.id, m.id));
+        }
+      }
+      await db.delete(users).where(eq(users.id, placeholder.id));
+    }
+  }
+  if (phone) {
+    const [placeholder] = await db.select().from(users).where(
+      and(eq(users.phone, phone))
+    );
+    if (placeholder && placeholder.id !== userId) {
+      const memberships = await db.select().from(workspaceMembers).where(eq(workspaceMembers.userId, placeholder.id));
+      for (const m of memberships) {
+        const [existing] = await db.select().from(workspaceMembers).where(
+          and(eq(workspaceMembers.workspaceId, m.workspaceId), eq(workspaceMembers.userId, userId))
+        );
+        if (!existing) {
+          await db.update(workspaceMembers).set({ userId }).where(eq(workspaceMembers.id, m.id));
+        } else {
+          await db.delete(workspaceMembers).where(eq(workspaceMembers.id, m.id));
+        }
+      }
+      await db.delete(users).where(eq(users.id, placeholder.id));
+    }
+  }
+
   const [updated] = await db.update(users).set({
     name,
     email: email ?? undefined,
     phone: phone ?? undefined,
     preferredChannel,
-    notificationTimings: notificationTimings ?? ["2_weeks", "1_week", "3_days", "2_days", "day_of"],
+    notificationTimings: notificationTimings ?? [],
     workingHoursStart: workingHoursStart ?? "09:00",
     workingHoursEnd: workingHoursEnd ?? "17:00",
     workingHoursTimezone: workingHoursTimezone ?? "America/New_York",

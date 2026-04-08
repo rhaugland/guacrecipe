@@ -1,11 +1,26 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3003";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+
+export function getSessionToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("guac_session");
+}
+
+export function setSessionToken(token: string) {
+  localStorage.setItem("guac_session", token);
+}
+
+export function clearSessionToken() {
+  localStorage.removeItem("guac_session");
+}
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getSessionToken();
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options?.headers,
     },
   });
