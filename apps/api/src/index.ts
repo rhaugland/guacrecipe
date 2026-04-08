@@ -13,7 +13,7 @@ import cron from "./routes/cron";
 const app = new Hono();
 
 app.use("*", cors({
-  origin: process.env.APP_URL ?? "http://localhost:3000",
+  origin: process.env.APP_URL ?? "http://localhost:3002",
   credentials: true,
 }));
 
@@ -27,7 +27,7 @@ app.route("/api/webhooks/telnyx", telnyxWebhook);
 app.route("/api/webhooks/resend", resendWebhook);
 app.route("/api/cron", cron);
 
-serve({ fetch: app.fetch, port: 3001 }, (info) => {
+serve({ fetch: app.fetch, port: 3003 }, (info) => {
   console.log(`Guac API running on http://localhost:${info.port}`);
 });
 
