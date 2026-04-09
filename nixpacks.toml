@@ -1,0 +1,5 @@
+[phases.build]
+cmds = ["npm install", "npx turbo build --filter=@guac/api --filter=@guac/db"]
+
+[start]
+cmd = "cd apps/api && npx tsx src/env.ts"
