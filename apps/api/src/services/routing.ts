@@ -1,5 +1,5 @@
 import { db, users, workspaces, workspaceMembers, conversations, messages, workspaceContactOverrides } from "@guac/db";
-import { eq, and, gt, desc } from "drizzle-orm";
+import { eq, and, or, gt, desc } from "drizzle-orm";
 import { deliver, sendSms, sendEmail, sendDiscord, sendSlack, formatWorkingHoursAck } from "./delivery";
 import { isWithinWorkingHours, getNextWorkingTime } from "./working-hours";
 import {
@@ -359,13 +359,27 @@ export async function routeMessage(
     and(eq(workspaceContactOverrides.workspaceId, workspaceId), eq(workspaceContactOverrides.userId, recipientId))
   );
 
-  const [conversation] = await db.insert(conversations).values({
-    workspaceId,
-    senderId: sender.id,
-    recipientId,
-    status: "active",
-    lastActivityAt: new Date(),
-  }).returning();
+  // Conversation Continuity: reuse existing conversation between these users in this workspace
+  const [existingConvo] = await db.select().from(conversations).where(
+    or(
+      and(eq(conversations.workspaceId, workspaceId), eq(conversations.senderId, sender.id), eq(conversations.recipientId, recipientId)),
+      and(eq(conversations.workspaceId, workspaceId), eq(conversations.senderId, recipientId), eq(conversations.recipientId, sender.id)),
+    )
+  ).orderBy(desc(conversations.lastActivityAt)).limit(1);
+
+  let conversation;
+  if (existingConvo) {
+    await db.update(conversations).set({ lastActivityAt: new Date(), status: "active" }).where(eq(conversations.id, existingConvo.id));
+    conversation = existingConvo;
+  } else {
+    [conversation] = await db.insert(conversations).values({
+      workspaceId,
+      senderId: sender.id,
+      recipientId,
+      status: "active",
+      lastActivityAt: new Date(),
+    }).returning();
+  }
 
   const recipientConfig = {
     workingHoursEnabled: recipient.workingHoursEnabled ?? true,

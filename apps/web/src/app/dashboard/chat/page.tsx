@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "../../../hooks/useAuth";
 import { useWorkspaces } from "../../../hooks/useWorkspaces";
 import { api } from "../../../lib/api-client";
-import type { WorkspaceMember, ChatMessage } from "../../../lib/types";
+import type { WorkspaceMember, ChatMessage, ChannelIntelligence } from "../../../lib/types";
 
 type Contact = WorkspaceMember & { workspaceId: string; workspaceName: string };
 
@@ -44,6 +44,12 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [showNewChat, setShowNewChat] = useState(false);
+  const [showBroadcast, setShowBroadcast] = useState(false);
+  const [broadcastWorkspace, setBroadcastWorkspace] = useState<string | null>(null);
+  const [broadcastDraft, setBroadcastDraft] = useState("");
+  const [broadcastSending, setBroadcastSending] = useState(false);
+  const [broadcastResult, setBroadcastResult] = useState<{ sent: number; total: number } | null>(null);
+  const [intelligence, setIntelligence] = useState<ChannelIntelligence | null>(null);
   // On mobile: "list" shows sidebar, "chat" shows conversation
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -118,12 +124,33 @@ export default function ChatPage() {
   const handleSelectContact = (contact: Contact) => {
     setSelected(contact);
     setShowNewChat(false);
+    setShowBroadcast(false);
     setMobileView("chat");
+    setIntelligence(null);
+    // Load channel intelligence
+    api.messages.intelligence(contact.workspaceId, contact.id)
+      .then((data) => setIntelligence(data.intelligence))
+      .catch(() => {});
+  };
+
+  const handleBroadcast = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!broadcastDraft.trim() || !broadcastWorkspace || broadcastSending) return;
+    setBroadcastSending(true);
+    setBroadcastResult(null);
+    try {
+      const result = await api.messages.broadcast({ workspaceId: broadcastWorkspace, body: broadcastDraft.trim() });
+      setBroadcastResult({ sent: result.sent, total: result.total });
+      setBroadcastDraft("");
+    } finally {
+      setBroadcastSending(false);
+    }
   };
 
   const handleBack = () => {
     setMobileView("list");
     setShowNewChat(false);
+    setShowBroadcast(false);
   };
 
   if (!user) return null;
@@ -242,6 +269,15 @@ export default function ChatPage() {
               <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-red-100 text-red-600">Paused</span>
             )}
           </div>
+          {intelligence?.fastest && (
+            <div className="flex items-center gap-1 mt-0.5">
+              <span className="text-[10px] text-gray-400">Fastest on</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${CHANNEL_LABELS[intelligence.fastest.channel]?.color ?? "bg-gray-100 text-gray-600"}`}>
+                {CHANNEL_LABELS[intelligence.fastest.channel]?.label ?? intelligence.fastest.channel}
+              </span>
+              <span className="text-[10px] text-green-primary font-medium">~{intelligence.fastest.label} avg</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -304,6 +340,74 @@ export default function ChatPage() {
     </div>
   ) : null;
 
+  const broadcastPanel = (
+    <div className="flex-1 flex flex-col">
+      <div className="px-4 md:px-6 py-3 border-b border-gray-100 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <button onClick={handleBack} className="md:hidden text-gray-400 hover:text-gray-600 p-1">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <h3 className="text-sm font-semibold text-gray-700">Broadcast Message</h3>
+        </div>
+        <button onClick={() => { setShowBroadcast(false); setMobileView("list"); }} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+      </div>
+      <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4">
+        <p className="text-sm text-gray-500 mb-4">
+          Send one message to every member in a workspace. Each person receives it on their preferred channel.
+        </p>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Workspace</label>
+            <select
+              value={broadcastWorkspace ?? ""}
+              onChange={(e) => { setBroadcastWorkspace(e.target.value || null); setBroadcastResult(null); }}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 bg-white"
+            >
+              <option value="">Select workspace...</option>
+              {workspaces.map((ws) => (
+                <option key={ws.id} value={ws.id}>{ws.name}</option>
+              ))}
+            </select>
+          </div>
+          {broadcastWorkspace && (
+            <div className="bg-green-light rounded-xl p-3">
+              <p className="text-xs text-green-primary">
+                This will deliver to {contacts.filter((c) => c.workspaceId === broadcastWorkspace).length} member(s), each on their preferred channel.
+              </p>
+            </div>
+          )}
+        </div>
+        {broadcastResult && (
+          <div className="mt-4 bg-green-light rounded-xl p-4 text-center">
+            <span className="text-2xl">🥑</span>
+            <p className="text-sm font-medium text-green-primary mt-1">
+              Broadcast sent to {broadcastResult.sent}/{broadcastResult.total} members
+            </p>
+          </div>
+        )}
+      </div>
+      <form onSubmit={handleBroadcast} className="px-4 md:px-6 py-3 border-t border-gray-100 flex gap-2">
+        <input
+          type="text"
+          value={broadcastDraft}
+          onChange={(e) => setBroadcastDraft(e.target.value)}
+          placeholder="Type your broadcast message..."
+          className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30"
+          autoFocus
+        />
+        <button
+          type="submit"
+          disabled={broadcastSending || !broadcastDraft.trim() || !broadcastWorkspace}
+          className="px-4 md:px-5 py-2.5 bg-green-primary text-white rounded-xl text-sm font-medium hover:bg-green-primary/90 transition-colors disabled:opacity-50"
+        >
+          {broadcastSending ? "..." : "Send All"}
+        </button>
+      </form>
+    </div>
+  );
+
   const emptyState = (
     <div className="flex-1 flex items-center justify-center">
       <div className="text-center px-4">
@@ -328,30 +432,42 @@ export default function ChatPage() {
         <div className="w-72 border-r border-gray-100 flex flex-col">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Chats</h2>
-            <button onClick={() => setShowNewChat(true)} className="text-sm text-green-primary font-medium hover:text-green-primary/80 transition-colors">
-              + New
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setShowBroadcast(true)} className="text-sm text-gray-400 font-medium hover:text-green-primary transition-colors" title="Broadcast to workspace">
+                Broadcast
+              </button>
+              <button onClick={() => setShowNewChat(true)} className="text-sm text-green-primary font-medium hover:text-green-primary/80 transition-colors">
+                + New
+              </button>
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto">{contactList}</div>
         </div>
         {/* Main */}
         <div className="flex-1 flex flex-col">
-          {showNewChat ? newChatPicker : chatArea ?? emptyState}
+          {showBroadcast ? broadcastPanel : showNewChat ? newChatPicker : chatArea ?? emptyState}
         </div>
       </div>
 
       {/* Mobile: full-screen panels */}
       <div className="md:hidden bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col" style={{ height: "calc(100vh - 160px)" }}>
-        {mobileView === "list" && !showNewChat ? (
+        {mobileView === "list" && !showNewChat && !showBroadcast ? (
           <>
             <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Chats</h2>
-              <button onClick={() => { setShowNewChat(true); setMobileView("chat"); }} className="text-sm text-green-primary font-medium">
-                + New
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => { setShowBroadcast(true); setMobileView("chat"); }} className="text-sm text-gray-400 font-medium hover:text-green-primary">
+                  Broadcast
+                </button>
+                <button onClick={() => { setShowNewChat(true); setMobileView("chat"); }} className="text-sm text-green-primary font-medium">
+                  + New
+                </button>
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto">{contactList}</div>
           </>
+        ) : showBroadcast ? (
+          broadcastPanel
         ) : showNewChat ? (
           newChatPicker
         ) : chatArea ? (

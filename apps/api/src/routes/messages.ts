@@ -112,4 +112,131 @@ messagesRouter.get("/conversation/:workspaceId/:recipientId", requireAuth, async
   return c.json({ messages: allMessages });
 });
 
+// Broadcast a message to all members in a workspace
+messagesRouter.post("/broadcast", requireAuth, async (c) => {
+  const userId = c.get("userId");
+  const { workspaceId, body } = await c.req.json();
+
+  if (!workspaceId || !body?.trim()) {
+    return c.json({ error: "workspaceId and body are required" }, 400);
+  }
+
+  const [membership] = await db.select().from(workspaceMembers).where(
+    and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId))
+  );
+  if (!membership) return c.json({ error: "Not a member of this workspace" }, 403);
+
+  const [sender] = await db.select().from(users).where(eq(users.id, userId));
+  if (!sender) return c.json({ error: "Sender not found" }, 404);
+
+  // Get all other members
+  const members = await db.select({ userId: workspaceMembers.userId })
+    .from(workspaceMembers)
+    .where(eq(workspaceMembers.workspaceId, workspaceId));
+
+  const recipients = members.filter((m) => m.userId !== userId);
+  if (recipients.length === 0) return c.json({ error: "No other members in workspace" }, 400);
+
+  // Route to each member
+  const results = await Promise.allSettled(
+    recipients.map((r) => routeMessage(sender, workspaceId, r.userId, body.trim(), "email", sender.email ?? ""))
+  );
+
+  const sent = results.filter((r) => r.status === "fulfilled").length;
+  return c.json({ success: true, sent, total: recipients.length });
+});
+
+// Get channel intelligence — avg response times per contact
+messagesRouter.get("/intelligence/:workspaceId/:recipientId", requireAuth, async (c) => {
+  const userId = c.get("userId");
+  const workspaceId = c.req.param("workspaceId");
+  const recipientId = c.req.param("recipientId");
+
+  // Get all conversations between these two users in this workspace
+  const convos = await db.select()
+    .from(conversations)
+    .where(
+      or(
+        and(eq(conversations.workspaceId, workspaceId), eq(conversations.senderId, userId), eq(conversations.recipientId, recipientId)),
+        and(eq(conversations.workspaceId, workspaceId), eq(conversations.senderId, recipientId), eq(conversations.recipientId, userId)),
+      )
+    );
+
+  if (convos.length === 0) return c.json({ intelligence: null });
+
+  // Get all messages across these conversations
+  const allMsgs: { id: string; senderId: string; channel: string; deliveryStatus: string; createdAt: Date; conversationId: string }[] = [];
+  for (const convo of convos) {
+    const msgs = await db.select().from(messages)
+      .where(eq(messages.conversationId, convo.id))
+      .orderBy(messages.createdAt);
+    allMsgs.push(...msgs.map((m) => ({
+      id: m.id,
+      senderId: m.senderId,
+      channel: m.channel,
+      deliveryStatus: m.deliveryStatus,
+      createdAt: m.createdAt,
+      conversationId: m.conversationId,
+    })));
+  }
+
+  allMsgs.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+  // Calculate response times per channel
+  // A "response" is when recipientId sends a message after userId sent one
+  const channelStats: Record<string, { totalMs: number; count: number }> = {};
+  let lastSentByUser: Date | null = null;
+  let lastSentChannel: string | null = null;
+
+  for (const msg of allMsgs) {
+    if (msg.senderId === userId) {
+      lastSentByUser = new Date(msg.createdAt);
+      lastSentChannel = msg.channel;
+    } else if (msg.senderId === recipientId && lastSentByUser) {
+      const responseTime = new Date(msg.createdAt).getTime() - lastSentByUser.getTime();
+      const ch = msg.channel;
+      if (!channelStats[ch]) channelStats[ch] = { totalMs: 0, count: 0 };
+      channelStats[ch].totalMs += responseTime;
+      channelStats[ch].count += 1;
+      lastSentByUser = null;
+      lastSentChannel = null;
+    }
+  }
+
+  const channels = Object.entries(channelStats).map(([channel, stats]) => ({
+    channel,
+    avgResponseMs: Math.round(stats.totalMs / stats.count),
+    responseCount: stats.count,
+  })).sort((a, b) => a.avgResponseMs - b.avgResponseMs);
+
+  const totalMessages = allMsgs.length;
+  const delivered = allMsgs.filter((m) => m.deliveryStatus === "delivered").length;
+
+  // Find fastest channel
+  const fastest = channels.length > 0 ? channels[0] : null;
+
+  return c.json({
+    intelligence: {
+      channels,
+      fastest: fastest ? {
+        channel: fastest.channel,
+        avgResponseMs: fastest.avgResponseMs,
+        label: formatDuration(fastest.avgResponseMs),
+      } : null,
+      totalMessages,
+      deliveryRate: totalMessages > 0 ? Math.round((delivered / totalMessages) * 100) : 0,
+    },
+  });
+});
+
+function formatDuration(ms: number): string {
+  const minutes = Math.floor(ms / 60000);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  if (days > 0) return `${days}d ${hours % 24}h`;
+  if (hours > 0) return `${hours}h ${minutes % 60}m`;
+  if (minutes > 0) return `${minutes}m`;
+  return "<1m";
+}
+
 export default messagesRouter;

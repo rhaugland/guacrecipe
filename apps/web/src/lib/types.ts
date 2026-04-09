@@ -61,6 +61,13 @@ export type ChatMessage = {
   createdAt: string;
 };
 
+export type ChannelIntelligence = {
+  channels: { channel: string; avgResponseMs: number; responseCount: number }[];
+  fastest: { channel: string; avgResponseMs: number; label: string } | null;
+  totalMessages: number;
+  deliveryRate: number;
+};
+
 export type Preferences = {
   preferredChannel: Channel;
   notificationChannels: string[];

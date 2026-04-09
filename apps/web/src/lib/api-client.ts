@@ -75,5 +75,9 @@ export const api = {
       request("/api/messages/send", { method: "POST", body: JSON.stringify(data) }),
     conversation: (workspaceId: string, recipientId: string) =>
       request<{ messages: import("./types").ChatMessage[] }>(`/api/messages/conversation/${workspaceId}/${recipientId}`),
+    broadcast: (data: { workspaceId: string; body: string }) =>
+      request<{ success: boolean; sent: number; total: number }>("/api/messages/broadcast", { method: "POST", body: JSON.stringify(data) }),
+    intelligence: (workspaceId: string, recipientId: string) =>
+      request<{ intelligence: import("./types").ChannelIntelligence | null }>(`/api/messages/intelligence/${workspaceId}/${recipientId}`),
   },
 };
