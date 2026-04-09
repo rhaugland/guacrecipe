@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
+    "start": "cd apps/api && npx tsx src/env.ts",
     "test": "turbo test",
     "db:generate": "turbo db:generate",
     "db:migrate": "turbo db:migrate"
