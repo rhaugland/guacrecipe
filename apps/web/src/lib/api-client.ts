@@ -89,5 +89,7 @@ export const api = {
       request(`/api/messages/read/${workspaceId}/${contactId}`, { method: "POST" }),
     unread: () =>
       request<{ unread: { workspaceId: string; contactId: string; count: number }[] }>("/api/messages/unread"),
+    search: (q: string) =>
+      request<{ results: import("./types").SearchResult[] }>(`/api/messages/search?q=${encodeURIComponent(q)}`),
   },
 };

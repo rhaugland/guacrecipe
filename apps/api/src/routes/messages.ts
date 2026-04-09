@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { requireAuth } from "../middleware/auth";
 import { db, messages, conversations, users, workspaces, workspaceMembers, chatReadReceipts } from "@guac/db";
-import { eq, or, desc, and, gt } from "drizzle-orm";
+import { eq, or, desc, and, gt, ilike } from "drizzle-orm";
 import { routeMessage } from "../services/routing";
 
 const messagesRouter = new Hono();
@@ -298,6 +298,67 @@ messagesRouter.get("/unread", requireAuth, async (c) => {
   }
 
   return c.json({ unread: unreadCounts });
+});
+
+// Search messages across all user's conversations
+messagesRouter.get("/search", requireAuth, async (c) => {
+  const userId = c.get("userId");
+  const query = c.req.query("q");
+  if (!query || query.trim().length < 2) return c.json({ results: [] });
+
+  const userConvos = await db.select({ id: conversations.id, workspaceId: conversations.workspaceId, senderId: conversations.senderId, recipientId: conversations.recipientId })
+    .from(conversations)
+    .where(or(eq(conversations.senderId, userId), eq(conversations.recipientId, userId)));
+
+  if (userConvos.length === 0) return c.json({ results: [] });
+
+  const results: {
+    messageId: string;
+    body: string;
+    senderId: string;
+    senderName: string;
+    contactId: string;
+    contactName: string;
+    workspaceId: string;
+    workspaceName: string;
+    channel: string;
+    createdAt: Date;
+  }[] = [];
+
+  // Search in batches to avoid huge queries
+  for (const convo of userConvos) {
+    const matches = await db.select().from(messages)
+      .where(and(eq(messages.conversationId, convo.id), ilike(messages.body, `%${query}%`)))
+      .orderBy(desc(messages.createdAt))
+      .limit(5);
+
+    if (matches.length > 0) {
+      const contactId = convo.senderId === userId ? convo.recipientId : convo.senderId;
+      if (!contactId) continue;
+
+      const [contact] = await db.select().from(users).where(eq(users.id, contactId));
+      const [workspace] = await db.select().from(workspaces).where(eq(workspaces.id, convo.workspaceId));
+
+      for (const msg of matches) {
+        const [sender] = await db.select().from(users).where(eq(users.id, msg.senderId));
+        results.push({
+          messageId: msg.id,
+          body: msg.body,
+          senderId: msg.senderId,
+          senderName: sender?.name ?? "Unknown",
+          contactId,
+          contactName: contact?.name ?? "Unknown",
+          workspaceId: convo.workspaceId,
+          workspaceName: workspace?.name ?? "Unknown",
+          channel: msg.channel,
+          createdAt: msg.createdAt,
+        });
+      }
+    }
+  }
+
+  results.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  return c.json({ results: results.slice(0, 20) });
 });
 
 function formatDuration(ms: number): string {

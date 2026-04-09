@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "../../../hooks/useAuth";
 import { useWorkspaces } from "../../../hooks/useWorkspaces";
 import { api } from "../../../lib/api-client";
-import type { WorkspaceMember, ChatMessage, ChannelIntelligence } from "../../../lib/types";
+import type { WorkspaceMember, ChatMessage, ChannelIntelligence, SearchResult } from "../../../lib/types";
 
 type Contact = WorkspaceMember & { workspaceId: string; workspaceName: string };
 
@@ -62,6 +62,10 @@ export default function ChatPage() {
   const [intelligence, setIntelligence] = useState<ChannelIntelligence | null>(null);
   const [showIntelligence, setShowIntelligence] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // On mobile: "list" shows sidebar, "chat" shows conversation
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -174,6 +178,33 @@ export default function ChatPage() {
     }
   };
 
+  const handleSearch = (q: string) => {
+    setSearchQuery(q);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (q.trim().length < 2) {
+      setSearchResults([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const { results } = await api.messages.search(q.trim());
+        setSearchResults(results);
+      } catch {}
+      setSearching(false);
+    }, 300);
+  };
+
+  const handleSearchResultClick = (result: SearchResult) => {
+    const contact = contacts.find((c) => c.id === result.contactId && c.workspaceId === result.workspaceId);
+    if (contact) {
+      handleSelectContact(contact);
+      setSearchQuery("");
+      setSearchResults([]);
+    }
+  };
+
   const handleBack = () => {
     setMobileView("list");
     setShowNewChat(false);
@@ -190,14 +221,86 @@ export default function ChatPage() {
 
   // -- Shared components --
 
+  // Filter contacts by search query (for contact name search)
+  const filteredGrouped = searchQuery.trim().length > 0
+    ? Object.fromEntries(
+        Object.entries(grouped)
+          .map(([wsId, group]) => [wsId, {
+            ...group,
+            contacts: group.contacts.filter((c) =>
+              (c.name ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+              (c.email ?? "").toLowerCase().includes(searchQuery.toLowerCase())
+            ),
+          }])
+          .filter(([, group]) => (group as { contacts: Contact[] }).contacts.length > 0)
+      ) as typeof grouped
+    : grouped;
+
   const contactList = (
     <>
+      {/* Search bar */}
+      <div className="px-3 py-2 border-b border-gray-100">
+        <div className="relative">
+          <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => handleSearch(e.target.value)}
+            placeholder="Search contacts & messages..."
+            className="w-full pl-9 pr-3 py-2 rounded-lg bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:bg-white border border-transparent focus:border-gray-200"
+          />
+          {searchQuery && (
+            <button onClick={() => { setSearchQuery(""); setSearchResults([]); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Message search results */}
+      {searchQuery.trim().length >= 2 && searchResults.length > 0 && (
+        <div className="border-b border-gray-100">
+          <div className="px-4 py-2 bg-gray-50">
+            <span className="text-xs font-semibold text-gray-400 uppercase">Messages</span>
+          </div>
+          {searchResults.map((r) => (
+            <button
+              key={r.messageId}
+              onClick={() => handleSearchResultClick(r)}
+              className="w-full px-4 py-3 flex items-start gap-3 hover:bg-gray-50 transition-colors text-left"
+            >
+              <div className="w-8 h-8 rounded-full bg-green-primary/10 flex items-center justify-center text-green-primary text-xs font-medium flex-shrink-0 mt-0.5">
+                {(r.contactName ?? "?")[0].toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-medium text-gray-800">{r.senderName}</span>
+                  <span className="text-[10px] text-gray-300">in</span>
+                  <span className="text-[10px] text-green-primary font-medium">{r.workspaceName}</span>
+                </div>
+                <p className="text-xs text-gray-500 truncate mt-0.5">{r.body}</p>
+                <span className="text-[10px] text-gray-300">{new Date(r.createdAt).toLocaleDateString()}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {searching && (
+        <p className="text-xs text-gray-400 text-center py-3">Searching...</p>
+      )}
+
+      {/* Contact list */}
       {loadingContacts ? (
         <p className="text-sm text-gray-400 text-center py-8">Loading...</p>
-      ) : Object.entries(grouped).length === 0 ? (
-        <p className="text-sm text-gray-400 text-center py-8">No contacts yet</p>
+      ) : Object.entries(filteredGrouped).length === 0 ? (
+        <p className="text-sm text-gray-400 text-center py-8">{searchQuery ? "No matches" : "No contacts yet"}</p>
       ) : (
-        Object.entries(grouped).map(([wsId, group]) => (
+        Object.entries(filteredGrouped).map(([wsId, group]) => (
           <div key={wsId}>
             <div className="px-4 py-2 bg-gray-50">
               <span className="text-xs font-semibold text-gray-400 uppercase">{group.name}</span>

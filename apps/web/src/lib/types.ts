@@ -68,6 +68,19 @@ export type ChannelIntelligence = {
   deliveryRate: number;
 };
 
+export type SearchResult = {
+  messageId: string;
+  body: string;
+  senderId: string;
+  senderName: string;
+  contactId: string;
+  contactName: string;
+  workspaceId: string;
+  workspaceName: string;
+  channel: string;
+  createdAt: string;
+};
+
 export type Preferences = {
   preferredChannel: Channel;
   notificationChannels: string[];
