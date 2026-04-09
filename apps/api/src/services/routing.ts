@@ -83,9 +83,14 @@ export async function handleInboundMessage(input: {
 }) {
   const { channel, senderIdentifier, body, forceDisambiguate } = input;
 
-  // 1. Identify sender
+  // 1. Identify sender — normalize phone to match DB (strip +1 prefix)
+  let lookupIdentifier = senderIdentifier;
+  if (channel === "sms") {
+    const digits = senderIdentifier.replace(/\D/g, "");
+    lookupIdentifier = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
+  }
   const [sender] = channel === "sms"
-    ? await db.select().from(users).where(eq(users.phone, senderIdentifier))
+    ? await db.select().from(users).where(eq(users.phone, lookupIdentifier))
     : await db.select().from(users).where(eq(users.email, senderIdentifier));
 
   if (!sender) {

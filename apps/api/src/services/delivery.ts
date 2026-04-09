@@ -94,6 +94,7 @@ export async function deliver(input: {
   body: string;
   conversationId: string;
 }): Promise<boolean> {
+  console.log(`[delivery] channel=${input.channel} toPhone=${input.toPhone} toEmail=${input.toEmail}`);
   const formatted = formatDeliveryMessage({
     senderName: input.senderName,
     workspaceName: input.workspaceName,
