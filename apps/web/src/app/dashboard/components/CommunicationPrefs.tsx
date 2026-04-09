@@ -7,6 +7,7 @@ const CHANNEL_OPTIONS = [
   { value: "sms", label: "Text" },
   { value: "discord", label: "Discord" },
   { value: "slack", label: "Slack" },
+  { value: "telegram", label: "Telegram" },
 ];
 
 const TIMING_OPTIONS = [

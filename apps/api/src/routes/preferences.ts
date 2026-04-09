@@ -20,6 +20,7 @@ preferences.get("/", requireAuth, async (c) => {
     discordId: user.discordId,
     slackId: user.slackId,
     slackTeamId: user.slackTeamId,
+    telegramChatId: user.telegramChatId,
   });
 });
 
@@ -30,7 +31,7 @@ preferences.patch("/", requireAuth, async (c) => {
   const allowedFields = [
     "preferredChannel", "notificationChannels", "notificationTimings", "notificationsEnabled",
     "workingHoursEnabled", "workingHoursStart", "workingHoursEnd",
-    "workingHoursTimezone", "workingHoursDays", "discordId", "slackId",
+    "workingHoursTimezone", "workingHoursDays", "discordId", "slackId", "telegramChatId",
   ] as const;
 
   const updates: Record<string, unknown> = { updatedAt: new Date() };

@@ -36,6 +36,7 @@ export async function deliverQueuedMessages() {
       toPhone: recipient.phone ?? undefined,
       toDiscordId: recipient.discordId ?? undefined,
       toSlackId: recipient.slackId ?? undefined,
+      toTelegramChatId: recipient.telegramChatId ?? undefined,
       recipientId: recipient.id,
       senderName: sender.name ?? "Someone",
       workspaceName: workspace.name,

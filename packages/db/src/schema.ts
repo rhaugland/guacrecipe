@@ -12,7 +12,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
-export const channelEnum = pgEnum("channel", ["sms", "email", "both", "discord", "slack"]);
+export const channelEnum = pgEnum("channel", ["sms", "email", "both", "discord", "slack", "telegram"]);
 export const roleEnum = pgEnum("role", ["admin", "member"]);
 export const conversationStatusEnum = pgEnum("conversation_status", ["active", "expired"]);
 export const deliveryStatusEnum = pgEnum("delivery_status", ["delivered", "queued", "pending", "failed"]);
@@ -27,6 +27,7 @@ export const users = pgTable("users", {
   phone: varchar("phone", { length: 20 }).unique(),
   discordId: varchar("discord_id", { length: 50 }).unique(),
   slackId: varchar("slack_id", { length: 50 }).unique(),
+  telegramChatId: varchar("telegram_chat_id", { length: 50 }).unique(),
   slackTeamId: varchar("slack_team_id", { length: 50 }),
   preferredChannel: channelEnum("preferred_channel").default("email"),
   notificationTimings: jsonb("notification_timings").$type<string[]>().default(["2_weeks", "1_week", "3_days", "2_days", "day_of"]),

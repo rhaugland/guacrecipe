@@ -93,4 +93,5 @@ export type Preferences = {
   workingHoursDays: number[];
   discordId: string | null;
   slackId: string | null;
+  telegramChatId: string | null;
 };

@@ -12,6 +12,7 @@ const CHANNEL_LABELS: Record<string, { label: string; color: string }> = {
   sms: { label: "SMS", color: "bg-purple-100 text-purple-700" },
   discord: { label: "Discord", color: "bg-indigo-100 text-indigo-700" },
   slack: { label: "Slack", color: "bg-yellow-100 text-yellow-800" },
+  telegram: { label: "Telegram", color: "bg-sky-100 text-sky-700" },
 };
 
 function ChannelTags({ channels }: { channels: string[] }) {

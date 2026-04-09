@@ -19,6 +19,7 @@ const TELNYX_API_KEY = process.env.TELNYX_API_KEY;
 const TELNYX_PHONE = process.env.TELNYX_PHONE_NUMBER;
 const GUAC_EMAIL = process.env.GUAC_EMAIL_ADDRESS;
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
 const APP_URL = process.env.APP_URL ?? "https://guacwithme.com";
 
@@ -150,6 +151,27 @@ export async function sendDiscord(userId: string, body: string): Promise<boolean
   }
 }
 
+export async function sendTelegram(chatId: string, body: string): Promise<boolean> {
+  try {
+    if (!TELEGRAM_BOT_TOKEN) {
+      console.warn("[delivery] Telegram bot token not configured");
+      return false;
+    }
+    const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: body }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.error("[delivery] Telegram message failed:", JSON.stringify(err));
+    }
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function sendSlack(slackUserId: string, body: string, teamId?: string): Promise<boolean> {
   try {
     // Look up the bot token: use teamId if provided, otherwise find from user's slack_team_id
@@ -236,18 +258,19 @@ export async function sendPush(userId: string, payload: { title: string; body: s
 }
 
 export async function deliver(input: {
-  channel: "sms" | "email" | "both" | "discord" | "slack";
+  channel: "sms" | "email" | "both" | "discord" | "slack" | "telegram";
   toPhone?: string;
   toEmail?: string;
   toDiscordId?: string;
   toSlackId?: string;
+  toTelegramChatId?: string;
   recipientId?: string;
   senderName: string;
   workspaceName: string;
   body: string;
   conversationId: string;
 }): Promise<boolean> {
-  console.log(`[delivery] channel=${input.channel} toPhone=${input.toPhone} toEmail=${input.toEmail} toDiscord=${input.toDiscordId} toSlack=${input.toSlackId}`);
+  console.log(`[delivery] channel=${input.channel} toPhone=${input.toPhone} toEmail=${input.toEmail} toDiscord=${input.toDiscordId} toSlack=${input.toSlackId} toTelegram=${input.toTelegramChatId}`);
   const formatted = formatDeliveryMessage({
     senderName: input.senderName,
     workspaceName: input.workspaceName,
@@ -285,6 +308,8 @@ export async function deliver(input: {
     return sendDiscord(input.toDiscordId, formatted);
   } else if (input.channel === "slack" && input.toSlackId) {
     return sendSlack(input.toSlackId, formatted);
+  } else if (input.channel === "telegram" && input.toTelegramChatId) {
+    return sendTelegram(input.toTelegramChatId, formatted);
   }
   return false;
 }

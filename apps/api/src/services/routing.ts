@@ -1,6 +1,6 @@
 import { db, users, workspaces, workspaceMembers, conversations, messages, workspaceContactOverrides } from "@guac/db";
 import { eq, and, or, gt, desc } from "drizzle-orm";
-import { deliver, sendSms, sendEmail, sendDiscord, sendSlack, formatWorkingHoursAck } from "./delivery";
+import { deliver, sendSms, sendEmail, sendDiscord, sendSlack, sendTelegram, formatWorkingHoursAck } from "./delivery";
 import { isWithinWorkingHours, getNextWorkingTime } from "./working-hours";
 import {
   createDisambiguationSession,
@@ -140,15 +140,16 @@ export function resolveRouting(input: RoutingInput & { senderId: string }): Rout
   };
 }
 
-async function replyToSender(channel: "sms" | "email" | "discord" | "slack", senderIdentifier: string, msg: string, subject?: string) {
+async function replyToSender(channel: "sms" | "email" | "discord" | "slack" | "telegram", senderIdentifier: string, msg: string, subject?: string) {
   if (channel === "sms") await sendSms(senderIdentifier, msg);
   else if (channel === "email") await sendEmail(senderIdentifier, subject ?? "Guac", msg);
   else if (channel === "discord") await sendDiscord(senderIdentifier, msg);
   else if (channel === "slack") await sendSlack(senderIdentifier, msg);
+  else if (channel === "telegram") await sendTelegram(senderIdentifier, msg);
 }
 
 export async function handleInboundMessage(input: {
-  channel: "sms" | "email" | "discord" | "slack";
+  channel: "sms" | "email" | "discord" | "slack" | "telegram";
   senderIdentifier: string;
   body: string;
   forceDisambiguate: boolean;
@@ -171,6 +172,8 @@ export async function handleInboundMessage(input: {
     senderRows = await db.select().from(users).where(eq(users.discordId, senderIdentifier));
   } else if (channel === "slack") {
     senderRows = await db.select().from(users).where(eq(users.slackId, senderIdentifier));
+  } else if (channel === "telegram") {
+    senderRows = await db.select().from(users).where(eq(users.telegramChatId, senderIdentifier));
   } else {
     return;
   }
@@ -290,7 +293,7 @@ async function handleDisambiguationReply(
   sender: typeof users.$inferSelect,
   session: any,
   reply: string,
-  channel: "sms" | "email" | "discord" | "slack",
+  channel: "sms" | "email" | "discord" | "slack" | "telegram",
   senderIdentifier: string,
 ) {
   const selected = parseDisambiguationReply(reply, session.options);
@@ -347,7 +350,7 @@ export async function routeMessage(
   workspaceId: string,
   recipientId: string,
   body: string,
-  senderChannel: "sms" | "email" | "discord" | "slack",
+  senderChannel: "sms" | "email" | "discord" | "slack" | "telegram",
   senderIdentifier: string,
 ) {
   const [recipient] = await db.select().from(users).where(eq(users.id, recipientId));
@@ -403,6 +406,7 @@ export async function routeMessage(
       toPhone: contactOverride?.phone ?? recipient.phone ?? undefined,
       toDiscordId: recipient.discordId ?? undefined,
       toSlackId: recipient.slackId ?? undefined,
+      toTelegramChatId: recipient.telegramChatId ?? undefined,
       recipientId: recipient.id,
       senderName: sender.name ?? "Someone",
       workspaceName: workspace.name,
