@@ -33,6 +33,16 @@ function getChannels(c: Contact): string[] {
   return c.notificationChannels?.length ? c.notificationChannels : [c.preferredChannel ?? "email"];
 }
 
+function formatMs(ms: number): string {
+  const minutes = Math.floor(ms / 60000);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  if (days > 0) return `${days}d ${hours % 24}h`;
+  if (hours > 0) return `${hours}h ${minutes % 60}m`;
+  if (minutes > 0) return `${minutes}m`;
+  return "<1m";
+}
+
 export default function ChatPage() {
   const { user } = useAuth();
   const { workspaces, getMembers } = useWorkspaces();
@@ -50,6 +60,7 @@ export default function ChatPage() {
   const [broadcastSending, setBroadcastSending] = useState(false);
   const [broadcastResult, setBroadcastResult] = useState<{ sent: number; total: number } | null>(null);
   const [intelligence, setIntelligence] = useState<ChannelIntelligence | null>(null);
+  const [showIntelligence, setShowIntelligence] = useState(false);
   // On mobile: "list" shows sidebar, "chat" shows conversation
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -127,6 +138,7 @@ export default function ChatPage() {
     setShowBroadcast(false);
     setMobileView("chat");
     setIntelligence(null);
+    setShowIntelligence(false);
     // Load channel intelligence
     api.messages.intelligence(contact.workspaceId, contact.id)
       .then((data) => setIntelligence(data.intelligence))
@@ -246,16 +258,19 @@ export default function ChatPage() {
   const chatArea = selected ? (
     <div className="flex-1 flex flex-col min-h-0">
       {/* Chat header */}
-      <div className="px-4 md:px-6 py-3 border-b border-gray-100 flex items-center gap-3">
+      <div className="px-4 md:px-6 py-3 border-b border-gray-100 flex items-center gap-3 relative">
         <button onClick={handleBack} className="md:hidden text-gray-400 hover:text-gray-600 p-1 -ml-1">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-        <div className="w-10 h-10 rounded-full bg-green-primary/10 flex items-center justify-center text-green-primary font-medium flex-shrink-0">
+        <button
+          onClick={() => setShowIntelligence(!showIntelligence)}
+          className="w-10 h-10 rounded-full bg-green-primary/10 flex items-center justify-center text-green-primary font-medium flex-shrink-0 hover:bg-green-primary/20 transition-colors"
+        >
           {(selected.name ?? "?")[0].toUpperCase()}
-        </div>
-        <div className="flex-1 min-w-0">
+        </button>
+        <button onClick={() => setShowIntelligence(!showIntelligence)} className="flex-1 min-w-0 text-left hover:opacity-80 transition-opacity">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm font-medium text-gray-900">{selected.name ?? "Pending"}</p>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-light text-green-primary font-medium">
@@ -268,17 +283,82 @@ export default function ChatPage() {
             {!selected.notificationsEnabled && (
               <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-red-100 text-red-600">Paused</span>
             )}
+            {intelligence?.fastest && (
+              <>
+                <span className="text-[10px] text-gray-300 mx-0.5">|</span>
+                <span className="text-[10px] text-green-primary font-medium">
+                  Fastest: {CHANNEL_LABELS[intelligence.fastest.channel]?.label} ~{intelligence.fastest.label}
+                </span>
+              </>
+            )}
           </div>
-          {intelligence?.fastest && (
-            <div className="flex items-center gap-1 mt-0.5">
-              <span className="text-[10px] text-gray-400">Fastest on</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${CHANNEL_LABELS[intelligence.fastest.channel]?.color ?? "bg-gray-100 text-gray-600"}`}>
-                {CHANNEL_LABELS[intelligence.fastest.channel]?.label ?? intelligence.fastest.channel}
-              </span>
-              <span className="text-[10px] text-green-primary font-medium">~{intelligence.fastest.label} avg</span>
+        </button>
+
+        {/* Intelligence popup */}
+        {showIntelligence && intelligence && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setShowIntelligence(false)} />
+            <div className="absolute top-full left-4 right-4 md:left-16 md:right-auto md:w-80 mt-1 bg-white rounded-xl shadow-lg border border-gray-100 z-50 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-gray-800">Channel Intelligence</h4>
+                <button onClick={() => setShowIntelligence(false)} className="text-gray-400 hover:text-gray-600">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <p className="text-xs text-gray-400 mb-3">
+                Avg response time for {selected.name} by channel
+              </p>
+
+              <div className="space-y-2">
+                {intelligence.channels.map((ch, i) => {
+                  const info = CHANNEL_LABELS[ch.channel];
+                  const maxMs = intelligence.channels[intelligence.channels.length - 1]?.avgResponseMs ?? 1;
+                  const pct = Math.max(8, Math.round((ch.avgResponseMs / maxMs) * 100));
+                  const label = formatMs(ch.avgResponseMs);
+                  return (
+                    <div key={ch.channel}>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${info?.color ?? "bg-gray-100 text-gray-600"}`}>
+                            {info?.label ?? ch.channel}
+                          </span>
+                          {i === 0 && <span className="text-[10px] text-green-primary font-medium">Fastest</span>}
+                        </div>
+                        <span className="text-xs text-gray-500 font-medium">~{label}</span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-1.5">
+                        <div
+                          className={`h-1.5 rounded-full transition-all ${i === 0 ? "bg-green-primary" : "bg-gray-300"}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+                <div className="text-center flex-1">
+                  <p className="text-lg font-bold text-gray-800">{intelligence.totalMessages}</p>
+                  <p className="text-[10px] text-gray-400">Messages</p>
+                </div>
+                <div className="w-px h-8 bg-gray-100" />
+                <div className="text-center flex-1">
+                  <p className="text-lg font-bold text-gray-800">{intelligence.deliveryRate}%</p>
+                  <p className="text-[10px] text-gray-400">Delivered</p>
+                </div>
+                <div className="w-px h-8 bg-gray-100" />
+                <div className="text-center flex-1">
+                  <p className="text-lg font-bold text-green-primary">{intelligence.channels.length}</p>
+                  <p className="text-[10px] text-gray-400">Channels</p>
+                </div>
+              </div>
             </div>
-          )}
-        </div>
+          </>
+        )}
       </div>
 
       {/* Messages */}
