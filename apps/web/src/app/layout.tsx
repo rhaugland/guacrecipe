@@ -15,7 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Guac" />
-        <link rel="apple-touch-icon" href="/guac-logo.png" />
+        <link rel="apple-touch-icon" href="/guac-emoji-icon.png" />
       </head>
       <body className="bg-cream text-gray-900 font-sans min-h-screen">
         {children}

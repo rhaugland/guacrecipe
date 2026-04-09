@@ -9,13 +9,13 @@
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/guac-logo.png",
+      "src": "/guac-emoji-icon.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/guac-logo.png",
+      "src": "/guac-emoji-icon.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
