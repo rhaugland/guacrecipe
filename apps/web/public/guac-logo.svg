@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Cream background circle -->
+  <circle cx="256" cy="256" r="256" fill="#FFFDF7"/>
+  <!-- Avocado body (outer - dark green) -->
+  <ellipse cx="256" cy="270" rx="140" ry="170" fill="#4A7C59"/>
+  <!-- Avocado body (inner - light green) -->
+  <ellipse cx="256" cy="270" rx="115" ry="145" fill="#8BB174"/>
+  <!-- Avocado pit -->
+  <circle cx="256" cy="300" r="55" fill="#8B6914"/>
+  <!-- Pit highlight -->
+  <ellipse cx="245" cy="288" rx="20" ry="25" fill="#A07D1A" opacity="0.6"/>
+  <!-- Stem -->
+  <path d="M256 100 Q260 80 252 65 Q248 55 256 45" stroke="#4A7C59" stroke-width="8" fill="none" stroke-linecap="round"/>
+  <!-- Small leaf -->
+  <path d="M256 75 Q275 60 285 70 Q275 80 256 75Z" fill="#4A7C59"/>
+</svg>
