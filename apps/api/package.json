@@ -3,7 +3,8 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/env.ts",
-    "build": "tsx src/env.ts",
+    "build": "echo 'no-op build'",
+    "start": "tsx src/env.ts",
     "test": "vitest"
   },
   "dependencies": {

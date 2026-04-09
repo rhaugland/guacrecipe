@@ -105,7 +105,8 @@ export async function sendEmail(to: string, subject: string, body: string, optio
       headers,
     });
     return true;
-  } catch {
+  } catch (err) {
+    console.error("[delivery] Email send failed:", err);
     return false;
   }
 }

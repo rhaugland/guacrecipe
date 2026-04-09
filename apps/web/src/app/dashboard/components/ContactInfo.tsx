@@ -168,9 +168,9 @@ export function ContactInfo({ prefs, onUpdate }: Props) {
         <div className="bg-gray-50 rounded-lg p-3 mt-2 text-xs text-gray-500 space-y-1">
           <p className="font-medium text-gray-600">How Slack connection works:</p>
           <ol className="list-decimal ml-4 space-y-0.5">
-            <li>Click "Add to Slack" and authorize the Guac bot</li>
+            <li>Click "Add to Slack" and authorize the bot</li>
             <li>Your Slack account is linked automatically</li>
-            <li>DM the Guac bot in Slack to send messages</li>
+            <li>DM <span className="font-semibold text-gray-700">@guac</span> in Slack to send messages</li>
             <li>Set your preferred channel to "Slack" to receive via DM</li>
           </ol>
         </div>
@@ -221,10 +221,10 @@ export function ContactInfo({ prefs, onUpdate }: Props) {
         <div className="bg-gray-50 rounded-lg p-3 mt-2 text-xs text-gray-500 space-y-1">
           <p className="font-medium text-gray-600">How to connect Telegram:</p>
           <ol className="list-decimal ml-4 space-y-0.5">
-            <li>Open Telegram and search for our bot</li>
+            <li>Open Telegram and search for <span className="font-semibold text-gray-700">@Team_Guac_Bot</span></li>
             <li>Send /start — the bot will reply with your Chat ID</li>
             <li>Paste that Chat ID here</li>
-            <li>DM the bot to send messages through Guac</li>
+            <li>DM <span className="font-semibold text-gray-700">@Team_Guac_Bot</span> to send messages through Guac</li>
           </ol>
         </div>
       )}

@@ -41,7 +41,7 @@ app.route("/api/slack", slackOauth);
 app.route("/api/cron", cron);
 app.route("/api/push", pushRouter);
 
-serve({ fetch: app.fetch, port: 3003 }, (info) => {
+serve({ fetch: app.fetch, port: 3002 }, (info) => {
   console.log(`Guac API running on http://localhost:${info.port}`);
   startDiscordGateway();
 });
