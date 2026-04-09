@@ -6,12 +6,19 @@
   "display": "standalone",
   "background_color": "#FFFDF7",
   "theme_color": "#4A7C59",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "/guac-logo.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/guac-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
