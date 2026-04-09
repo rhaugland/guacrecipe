@@ -1,0 +1,17 @@
+{
+  "name": "Guac",
+  "short_name": "Guac",
+  "description": "Your communication switchboard",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#FFFDF7",
+  "theme_color": "#4A7C59",
+  "icons": [
+    {
+      "src": "/guac-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

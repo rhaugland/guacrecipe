@@ -8,6 +8,7 @@ import { RecentActivity } from "./components/RecentActivity";
 import { ContactInfo } from "./components/ContactInfo";
 import { CommunicationPrefs } from "./components/CommunicationPrefs";
 import { RoutingRules } from "./components/RoutingRules";
+import { PushNotifications } from "./components/PushNotifications";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -23,6 +24,7 @@ export default function DashboardPage() {
     <div className="max-w-2xl mx-auto space-y-4">
       <ContactInfo prefs={prefs} onUpdate={updatePrefs} />
       <CommunicationPrefs prefs={prefs} onUpdate={updatePrefs} />
+      <PushNotifications />
       <RoutingRules workspaces={workspaces} />
       <WorkspaceList workspaces={workspaces} onCreate={create} getMembers={getMembers} addMember={addMember} removeMember={removeMember} setWorkspaceContact={setWorkspaceContact} userId={user.id} />
       <RecentActivity activity={activity} />

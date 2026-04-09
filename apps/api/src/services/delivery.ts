@@ -1,7 +1,16 @@
 import { Resend } from "resend";
-import { db, users, slackInstallations } from "@guac/db";
+import webpush from "web-push";
+import { db, users, slackInstallations, pushSubscriptions } from "@guac/db";
 import { eq } from "drizzle-orm";
 import { wrapEmailHtml } from "./email-template";
+
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
+const VAPID_EMAIL = process.env.VAPID_EMAIL ?? "mailto:avo@guacwithme.com";
+
+if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+}
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -181,12 +190,52 @@ export async function sendSlack(slackUserId: string, body: string, teamId?: stri
   }
 }
 
+export async function sendPush(userId: string, payload: { title: string; body: string; tag?: string; url?: string }): Promise<boolean> {
+  try {
+    if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+      console.warn("[delivery] VAPID keys not configured, skipping push");
+      return false;
+    }
+
+    const subs = await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
+    if (subs.length === 0) return false;
+
+    const results = await Promise.allSettled(
+      subs.map(async (sub) => {
+        try {
+          await webpush.sendNotification(
+            {
+              endpoint: sub.endpoint,
+              keys: { p256dh: sub.p256dh, auth: sub.auth },
+            },
+            JSON.stringify(payload)
+          );
+        } catch (err: unknown) {
+          // If subscription is expired/invalid (410 Gone or 404), remove it
+          if (err && typeof err === "object" && "statusCode" in err) {
+            const statusCode = (err as { statusCode: number }).statusCode;
+            if (statusCode === 410 || statusCode === 404) {
+              await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, sub.id));
+            }
+          }
+          throw err;
+        }
+      })
+    );
+
+    return results.some((r) => r.status === "fulfilled");
+  } catch {
+    return false;
+  }
+}
+
 export async function deliver(input: {
   channel: "sms" | "email" | "both" | "discord" | "slack";
   toPhone?: string;
   toEmail?: string;
   toDiscordId?: string;
   toSlackId?: string;
+  recipientId?: string;
   senderName: string;
   workspaceName: string;
   body: string;
@@ -201,6 +250,17 @@ export async function deliver(input: {
 
   const subject = `Message from ${input.senderName} — ${input.workspaceName}`;
   const messageId = `<conv-${input.conversationId}@guac.app>`;
+
+  // Send push notification alongside the channel delivery
+  const channelLabel = input.channel === "both" ? "Email & SMS" : input.channel.charAt(0).toUpperCase() + input.channel.slice(1);
+  if (input.recipientId) {
+    sendPush(input.recipientId, {
+      title: "Guac",
+      body: `${input.senderName} sent a message to your ${channelLabel}`,
+      tag: `msg-${input.conversationId}`,
+      url: "/dashboard/chat",
+    }).catch(() => {}); // fire-and-forget
+  }
 
   if (input.channel === "both") {
     const results = await Promise.all([

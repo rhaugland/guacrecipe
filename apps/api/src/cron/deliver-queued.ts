@@ -30,11 +30,13 @@ export async function deliverQueuedMessages() {
 
     if (!isWithinWorkingHours(config, now)) continue;
 
-    const recipientContact = recipient.preferredChannel === "sms" ? recipient.phone! : recipient.email!;
-
     const success = await deliver({
       channel: recipient.preferredChannel ?? "email",
-      to: recipientContact,
+      toEmail: recipient.email ?? undefined,
+      toPhone: recipient.phone ?? undefined,
+      toDiscordId: recipient.discordId ?? undefined,
+      toSlackId: recipient.slackId ?? undefined,
+      recipientId: recipient.id,
       senderName: sender.name ?? "Someone",
       workspaceName: workspace.name,
       body: msg.body,

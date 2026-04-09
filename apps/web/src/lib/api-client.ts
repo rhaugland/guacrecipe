@@ -63,6 +63,13 @@ export const api = {
   activity: {
     recent: () => request<{ activity: import("./types").ActivityItem[] }>("/api/messages/recent"),
   },
+  push: {
+    subscribe: (subscription: PushSubscriptionJSON) =>
+      request("/api/push/subscribe", { method: "POST", body: JSON.stringify(subscription) }),
+    unsubscribe: (endpoint: string) =>
+      request("/api/push/unsubscribe", { method: "POST", body: JSON.stringify({ endpoint }) }),
+    status: () => request<{ subscribed: boolean }>("/api/push/status"),
+  },
   messages: {
     send: (data: { workspaceId: string; recipientId: string; body: string }) =>
       request("/api/messages/send", { method: "POST", body: JSON.stringify(data) }),

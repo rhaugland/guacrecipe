@@ -389,6 +389,7 @@ export async function routeMessage(
       toPhone: contactOverride?.phone ?? recipient.phone ?? undefined,
       toDiscordId: recipient.discordId ?? undefined,
       toSlackId: recipient.slackId ?? undefined,
+      recipientId: recipient.id,
       senderName: sender.name ?? "Someone",
       workspaceName: workspace.name,
       body,

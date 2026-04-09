@@ -12,10 +12,12 @@
     "dotenv": "^17.4.1",
     "hono": "^4.7.0",
     "resend": "^4.1.0",
+    "web-push": "^3.6.7",
     "ws": "^8.20.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/web-push": "^3.6.4",
     "@types/ws": "^8.18.1",
     "tsx": "^4.19.0",
     "vitest": "^3.1.0"

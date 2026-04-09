@@ -13,6 +13,7 @@ import slackWebhook from "./routes/webhooks/slack";
 import slackOauth from "./routes/slack-oauth";
 import { startDiscordGateway } from "./routes/webhooks/discord";
 import cron from "./routes/cron";
+import pushRouter from "./routes/push";
 
 const app = new Hono();
 
@@ -36,6 +37,7 @@ app.route("/api/webhooks/mailgun", mailgunWebhook);
 app.route("/api/webhooks/slack", slackWebhook);
 app.route("/api/slack", slackOauth);
 app.route("/api/cron", cron);
+app.route("/api/push", pushRouter);
 
 serve({ fetch: app.fetch, port: 3003 }, (info) => {
   console.log(`Guac API running on http://localhost:${info.port}`);
