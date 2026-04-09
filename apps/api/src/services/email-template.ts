@@ -1,4 +1,7 @@
-export function wrapEmailHtml(body: string, options?: { ctaText?: string; ctaUrl?: string }): string {
+const APP_URL = process.env.APP_URL ?? "https://guacwithme.com";
+
+export function wrapEmailHtml(body: string, options?: { ctaText?: string; ctaUrl?: string; recipientId?: string }): string {
+  const joinUrl = options?.recipientId ? `${APP_URL}/join?ref=${options.recipientId}` : `${APP_URL}/join`;
   const cta = options?.ctaUrl
     ? `<tr><td style="padding: 24px 0 0 0;" align="center">
         <a href="${options.ctaUrl}" style="display:inline-block;padding:14px 32px;background-color:#4A7C59;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:600;font-size:16px;">${options.ctaText ?? "Open Guac"}</a>
@@ -30,7 +33,7 @@ export function wrapEmailHtml(body: string, options?: { ctaText?: string; ctaUrl
         </td></tr>
         <!-- Footer -->
         <tr><td align="center" style="padding:24px 0 0 0;color:#9ca3af;font-size:12px;line-height:18px;">
-          Sent with Guac — your team communication switchboard
+          Sent via <a href="${joinUrl}" style="color:#4A7C59;text-decoration:none;font-weight:600;">Guac</a> — manage how people reach you
         </td></tr>
       </table>
     </td></tr>

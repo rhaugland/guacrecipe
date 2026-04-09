@@ -20,12 +20,18 @@ const TELNYX_PHONE = process.env.TELNYX_PHONE_NUMBER;
 const GUAC_EMAIL = process.env.GUAC_EMAIL_ADDRESS;
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 
+const APP_URL = process.env.APP_URL ?? "https://guacwithme.com";
+
 export function formatDeliveryMessage(input: {
   senderName: string;
   workspaceName: string;
   body: string;
+  recipientId?: string;
 }): string {
-  return `From ${input.senderName} (${input.workspaceName}):\n${input.body}\n\nReply to respond.`;
+  const joinUrl = input.recipientId
+    ? `${APP_URL}/join?ref=${input.recipientId}`
+    : `${APP_URL}/join`;
+  return `From ${input.senderName} (${input.workspaceName}):\n${input.body}\n\nReply to respond.\n\n—\nSent via Guac — manage how people reach you\n${joinUrl}`;
 }
 
 export function formatWorkingHoursAck(input: {
@@ -73,7 +79,7 @@ export async function sendSms(to: string, body: string): Promise<boolean> {
   }
 }
 
-export async function sendEmail(to: string, subject: string, body: string, options?: { replyToMessageId?: string; ctaText?: string; ctaUrl?: string }): Promise<boolean> {
+export async function sendEmail(to: string, subject: string, body: string, options?: { replyToMessageId?: string; ctaText?: string; ctaUrl?: string; recipientId?: string }): Promise<boolean> {
   try {
     const headers: Record<string, string> = {};
     if (options?.replyToMessageId) {
@@ -87,7 +93,7 @@ export async function sendEmail(to: string, subject: string, body: string, optio
     }
 
     const escapedBody = body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const html = wrapEmailHtml(escapedBody, { ctaText: options?.ctaText, ctaUrl: options?.ctaUrl });
+    const html = wrapEmailHtml(escapedBody, { ctaText: options?.ctaText, ctaUrl: options?.ctaUrl, recipientId: options?.recipientId });
 
     await resend.emails.send({
       from: `Guac <${GUAC_EMAIL}>`,
@@ -246,6 +252,7 @@ export async function deliver(input: {
     senderName: input.senderName,
     workspaceName: input.workspaceName,
     body: input.body,
+    recipientId: input.recipientId,
   });
 
   const subject = `Message from ${input.senderName} — ${input.workspaceName}`;
@@ -262,16 +269,18 @@ export async function deliver(input: {
     }).catch(() => {}); // fire-and-forget
   }
 
+  const emailOpts = { replyToMessageId: messageId, recipientId: input.recipientId };
+
   if (input.channel === "both") {
     const results = await Promise.all([
-      input.toEmail ? sendEmail(input.toEmail, subject, formatted, { replyToMessageId: messageId }) : Promise.resolve(false),
+      input.toEmail ? sendEmail(input.toEmail, subject, formatted, emailOpts) : Promise.resolve(false),
       input.toPhone ? sendSms(input.toPhone, formatted) : Promise.resolve(false),
     ]);
     return results.some(Boolean);
   } else if (input.channel === "sms" && input.toPhone) {
     return sendSms(input.toPhone, formatted);
   } else if (input.channel === "email" && input.toEmail) {
-    return sendEmail(input.toEmail, subject, formatted, { replyToMessageId: messageId });
+    return sendEmail(input.toEmail, subject, formatted, emailOpts);
   } else if (input.channel === "discord" && input.toDiscordId) {
     return sendDiscord(input.toDiscordId, formatted);
   } else if (input.channel === "slack" && input.toSlackId) {
