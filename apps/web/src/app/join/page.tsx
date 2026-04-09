@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "../../lib/api-client";
 import { setSessionToken } from "../../lib/api-client";
@@ -12,6 +12,14 @@ const CHANNELS = [
 ];
 
 export default function JoinPage() {
+  return (
+    <Suspense>
+      <JoinPageInner />
+    </Suspense>
+  );
+}
+
+function JoinPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const ref = searchParams.get("ref");
