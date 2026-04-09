@@ -61,6 +61,7 @@ export default function ChatPage() {
   const [broadcastResult, setBroadcastResult] = useState<{ sent: number; total: number } | null>(null);
   const [intelligence, setIntelligence] = useState<ChannelIntelligence | null>(null);
   const [showIntelligence, setShowIntelligence] = useState(false);
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   // On mobile: "list" shows sidebar, "chat" shows conversation
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -87,14 +88,24 @@ export default function ChatPage() {
     }
   }, [user, workspaces, getMembers, selected]);
 
+  const loadUnread = useCallback(async () => {
+    try {
+      const { unread } = await api.messages.unread();
+      const counts: Record<string, number> = {};
+      for (const u of unread) counts[`${u.workspaceId}:${u.contactId}`] = u.count;
+      setUnreadCounts(counts);
+    } catch {}
+  }, []);
+
   useEffect(() => {
     loadContacts();
+    loadUnread();
   }, [user, workspaces]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const interval = setInterval(loadContacts, 30000);
+    const interval = setInterval(() => { loadContacts(); loadUnread(); }, 30000);
     return () => clearInterval(interval);
-  }, [loadContacts]);
+  }, [loadContacts, loadUnread]);
 
   const loadConversation = useCallback(async (contact: Contact) => {
     const data = await api.messages.conversation(contact.workspaceId, contact.id);
@@ -139,6 +150,10 @@ export default function ChatPage() {
     setMobileView("chat");
     setIntelligence(null);
     setShowIntelligence(false);
+    // Mark as read and clear badge
+    const key = `${contact.workspaceId}:${contact.id}`;
+    setUnreadCounts((prev) => { const next = { ...prev }; delete next[key]; return next; });
+    api.messages.markRead(contact.workspaceId, contact.id).catch(() => {});
     // Load channel intelligence
     api.messages.intelligence(contact.workspaceId, contact.id)
       .then((data) => setIntelligence(data.intelligence))
@@ -187,26 +202,40 @@ export default function ChatPage() {
             <div className="px-4 py-2 bg-gray-50">
               <span className="text-xs font-semibold text-gray-400 uppercase">{group.name}</span>
             </div>
-            {group.contacts.map((c) => (
-              <button
-                key={`${wsId}-${c.id}`}
-                onClick={() => handleSelectContact(c)}
-                className={`w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors ${
-                  selected?.id === c.id && selected?.workspaceId === c.workspaceId ? "bg-green-light" : ""
-                }`}
-              >
-                <div className="w-10 h-10 md:w-8 md:h-8 rounded-full bg-green-primary/10 flex items-center justify-center text-green-primary text-sm font-medium flex-shrink-0">
-                  {(c.name ?? "?")[0].toUpperCase()}
-                </div>
-                <div className="flex-1 text-left min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{c.name ?? "Pending"}</p>
-                  <div className="mt-0.5">
-                    <ChannelTags channels={getChannels(c)} />
+            {group.contacts.map((c) => {
+              const unread = unreadCounts[`${wsId}:${c.id}`] ?? 0;
+              return (
+                <button
+                  key={`${wsId}-${c.id}`}
+                  onClick={() => handleSelectContact(c)}
+                  className={`w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors ${
+                    selected?.id === c.id && selected?.workspaceId === c.workspaceId ? "bg-green-light" : ""
+                  }`}
+                >
+                  <div className="relative flex-shrink-0">
+                    <div className="w-10 h-10 md:w-8 md:h-8 rounded-full bg-green-primary/10 flex items-center justify-center text-green-primary text-sm font-medium">
+                      {(c.name ?? "?")[0].toUpperCase()}
+                    </div>
+                    {unread > 0 && (
+                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-green-primary text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                        {unread > 9 ? "9+" : unread}
+                      </span>
+                    )}
                   </div>
-                </div>
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${c.notificationsEnabled ? "bg-green-secondary" : "bg-gray-300"}`} />
-              </button>
-            ))}
+                  <div className="flex-1 text-left min-w-0">
+                    <p className={`text-sm truncate ${unread > 0 ? "font-bold text-gray-900" : "font-medium text-gray-900"}`}>{c.name ?? "Pending"}</p>
+                    <div className="mt-0.5">
+                      <ChannelTags channels={getChannels(c)} />
+                    </div>
+                  </div>
+                  {unread > 0 ? (
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-green-primary" />
+                  ) : (
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${c.notificationsEnabled ? "bg-green-secondary" : "bg-gray-300"}`} />
+                  )}
+                </button>
+              );
+            })}
           </div>
         ))
       )}

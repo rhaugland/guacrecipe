@@ -2,6 +2,7 @@
 import { useState } from "react";
 import type { Workspace, WorkspaceMember } from "../../../lib/types";
 import { AddMemberModal } from "./AddMemberModal";
+import { api } from "../../../lib/api-client";
 
 type Props = {
   workspace: Workspace;
@@ -18,6 +19,8 @@ export function WorkspaceCard({ workspace, getMembers, addMember, removeMember, 
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingEmail, setEditingEmail] = useState(false);
   const [wsEmail, setWsEmail] = useState("");
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const isAdmin = workspace.role === "admin";
 
   const myMember = members.find((m) => m.id === userId);
@@ -124,10 +127,38 @@ export function WorkspaceCard({ workspace, getMembers, addMember, removeMember, 
             ))}
           </div>
           {isAdmin && (
-            <button onClick={() => setShowAddModal(true)}
-              className="mt-3 w-full py-2 rounded-lg border border-dashed border-gray-300 text-sm text-gray-500 hover:border-green-primary hover:text-green-primary transition-colors font-medium">
-              + Add member
-            </button>
+            <div className="mt-3 space-y-2">
+              <button onClick={() => setShowAddModal(true)}
+                className="w-full py-2 rounded-lg border border-dashed border-gray-300 text-sm text-gray-500 hover:border-green-primary hover:text-green-primary transition-colors font-medium">
+                + Add member
+              </button>
+              <button
+                onClick={async () => {
+                  const { url } = await api.workspaces.generateInvite(workspace.id);
+                  setInviteUrl(url);
+                  setCopied(false);
+                }}
+                className="w-full py-2 rounded-lg border border-dashed border-gray-300 text-sm text-gray-500 hover:border-green-primary hover:text-green-primary transition-colors font-medium"
+              >
+                Share invite link
+              </button>
+              {inviteUrl && (
+                <div className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                  <input
+                    type="text"
+                    value={inviteUrl}
+                    readOnly
+                    className="flex-1 text-xs text-gray-600 bg-transparent truncate outline-none"
+                  />
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(inviteUrl); setCopied(true); }}
+                    className="px-3 py-1 bg-green-primary text-white rounded-lg text-xs font-medium flex-shrink-0"
+                  >
+                    {copied ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+              )}
+            </div>
           )}
 
         </div>

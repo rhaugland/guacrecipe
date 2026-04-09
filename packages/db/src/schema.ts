@@ -154,6 +154,25 @@ export const sessions = pgTable("sessions", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const workspaceInvites = pgTable("workspace_invites", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id).notNull(),
+  token: varchar("token", { length: 64 }).unique().notNull(),
+  createdBy: uuid("created_by").references(() => users.id).notNull(),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const chatReadReceipts = pgTable("chat_read_receipts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id).notNull(),
+  contactId: uuid("contact_id").references(() => users.id).notNull(),
+  lastReadAt: timestamp("last_read_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("chat_read_unique").on(table.userId, table.workspaceId, table.contactId),
+]);
+
 export const pushSubscriptions = pgTable("push_subscriptions", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id").references(() => users.id).notNull(),

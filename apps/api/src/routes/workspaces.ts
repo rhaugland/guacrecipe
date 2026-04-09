@@ -1,7 +1,8 @@
 import { Hono } from "hono";
+import crypto from "crypto";
 import { requireAuth } from "../middleware/auth";
-import { db, workspaces, workspaceMembers, users, workspaceContactOverrides } from "@guac/db";
-import { eq, and } from "drizzle-orm";
+import { db, workspaces, workspaceMembers, users, workspaceContactOverrides, workspaceInvites, sessions } from "@guac/db";
+import { eq, and, gt } from "drizzle-orm";
 import { createMagicLink } from "../services/magic-link";
 
 const workspacesRouter = new Hono();
@@ -226,6 +227,90 @@ workspacesRouter.put("/:id/contact", requireAuth, async (c) => {
     }).returning();
     return c.json({ contact: created });
   }
+});
+
+// Generate or get existing invite link for a workspace (admin only)
+workspacesRouter.post("/:id/invite", requireAuth, async (c) => {
+  const workspaceId = c.req.param("id");
+  const userId = c.get("userId");
+
+  const [membership] = await db.select().from(workspaceMembers).where(
+    and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId))
+  );
+  if (!membership || membership.role !== "admin") {
+    return c.json({ error: "Admin access required" }, 403);
+  }
+
+  // Check for existing valid invite
+  const [existing] = await db.select().from(workspaceInvites).where(
+    and(eq(workspaceInvites.workspaceId, workspaceId))
+  );
+
+  if (existing) {
+    const appUrl = process.env.APP_URL ?? "http://localhost:3002";
+    return c.json({ url: `${appUrl}/invite/${existing.token}`, token: existing.token });
+  }
+
+  // Create new invite
+  const token = crypto.randomBytes(32).toString("hex");
+  await db.insert(workspaceInvites).values({
+    workspaceId,
+    token,
+    createdBy: userId,
+  });
+
+  const appUrl = process.env.APP_URL ?? "http://localhost:3002";
+  return c.json({ url: `${appUrl}/invite/${token}`, token });
+});
+
+// Accept an invite (authenticated user joins workspace)
+workspacesRouter.post("/join/:token", requireAuth, async (c) => {
+  const token = c.req.param("token");
+  const userId = c.get("userId");
+
+  const [invite] = await db.select().from(workspaceInvites).where(eq(workspaceInvites.token, token));
+  if (!invite) return c.json({ error: "Invalid invite link" }, 404);
+
+  if (invite.expiresAt && new Date(invite.expiresAt) < new Date()) {
+    return c.json({ error: "Invite link has expired" }, 410);
+  }
+
+  // Check if already a member
+  const [existingMember] = await db.select().from(workspaceMembers).where(
+    and(eq(workspaceMembers.workspaceId, invite.workspaceId), eq(workspaceMembers.userId, userId))
+  );
+  if (existingMember) return c.json({ error: "Already a member", workspaceId: invite.workspaceId }, 409);
+
+  await db.insert(workspaceMembers).values({
+    workspaceId: invite.workspaceId,
+    userId,
+    role: "member",
+  });
+
+  const [workspace] = await db.select().from(workspaces).where(eq(workspaces.id, invite.workspaceId));
+  return c.json({ success: true, workspace: { id: workspace.id, name: workspace.name } });
+});
+
+// Get invite info (public — no auth required)
+workspacesRouter.get("/invite-info/:token", async (c) => {
+  const token = c.req.param("token");
+
+  const [invite] = await db.select().from(workspaceInvites).where(eq(workspaceInvites.token, token));
+  if (!invite) return c.json({ error: "Invalid invite" }, 404);
+
+  if (invite.expiresAt && new Date(invite.expiresAt) < new Date()) {
+    return c.json({ error: "Invite expired" }, 410);
+  }
+
+  const [workspace] = await db.select().from(workspaces).where(eq(workspaces.id, invite.workspaceId));
+  const memberCount = await db.select({ id: workspaceMembers.id })
+    .from(workspaceMembers)
+    .where(eq(workspaceMembers.workspaceId, invite.workspaceId));
+
+  return c.json({
+    workspaceName: workspace.name,
+    memberCount: memberCount.length,
+  });
 });
 
 export default workspacesRouter;

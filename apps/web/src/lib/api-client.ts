@@ -59,6 +59,12 @@ export const api = {
       request(`/api/workspaces/${workspaceId}/members/${userId}`, { method: "DELETE" }),
     setContact: (workspaceId: string, data: { email?: string; phone?: string }) =>
       request(`/api/workspaces/${workspaceId}/contact`, { method: "PUT", body: JSON.stringify(data) }),
+    generateInvite: (workspaceId: string) =>
+      request<{ url: string; token: string }>(`/api/workspaces/${workspaceId}/invite`, { method: "POST" }),
+    joinByInvite: (token: string) =>
+      request<{ success: boolean; workspace: { id: string; name: string } }>(`/api/workspaces/join/${token}`, { method: "POST" }),
+    inviteInfo: (token: string) =>
+      request<{ workspaceName: string; memberCount: number }>(`/api/workspaces/invite-info/${token}`),
   },
   activity: {
     recent: () => request<{ activity: import("./types").ActivityItem[] }>("/api/messages/recent"),
@@ -79,5 +85,9 @@ export const api = {
       request<{ success: boolean; sent: number; total: number }>("/api/messages/broadcast", { method: "POST", body: JSON.stringify(data) }),
     intelligence: (workspaceId: string, recipientId: string) =>
       request<{ intelligence: import("./types").ChannelIntelligence | null }>(`/api/messages/intelligence/${workspaceId}/${recipientId}`),
+    markRead: (workspaceId: string, contactId: string) =>
+      request(`/api/messages/read/${workspaceId}/${contactId}`, { method: "POST" }),
+    unread: () =>
+      request<{ unread: { workspaceId: string; contactId: string; count: number }[] }>("/api/messages/unread"),
   },
 };

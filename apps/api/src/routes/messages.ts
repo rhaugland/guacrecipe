@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { requireAuth } from "../middleware/auth";
-import { db, messages, conversations, users, workspaces, workspaceMembers } from "@guac/db";
-import { eq, or, desc, and } from "drizzle-orm";
+import { db, messages, conversations, users, workspaces, workspaceMembers, chatReadReceipts } from "@guac/db";
+import { eq, or, desc, and, gt } from "drizzle-orm";
 import { routeMessage } from "../services/routing";
 
 const messagesRouter = new Hono();
@@ -227,6 +227,77 @@ messagesRouter.get("/intelligence/:workspaceId/:recipientId", requireAuth, async
       deliveryRate: totalMessages > 0 ? Math.round((delivered / totalMessages) * 100) : 0,
     },
   });
+});
+
+// Mark a conversation as read
+messagesRouter.post("/read/:workspaceId/:contactId", requireAuth, async (c) => {
+  const userId = c.get("userId");
+  const workspaceId = c.req.param("workspaceId");
+  const contactId = c.req.param("contactId");
+
+  const [existing] = await db.select().from(chatReadReceipts).where(
+    and(
+      eq(chatReadReceipts.userId, userId),
+      eq(chatReadReceipts.workspaceId, workspaceId),
+      eq(chatReadReceipts.contactId, contactId)
+    )
+  );
+
+  if (existing) {
+    await db.update(chatReadReceipts).set({ lastReadAt: new Date() }).where(eq(chatReadReceipts.id, existing.id));
+  } else {
+    await db.insert(chatReadReceipts).values({ userId, workspaceId, contactId, lastReadAt: new Date() });
+  }
+
+  return c.json({ ok: true });
+});
+
+// Get unread counts for all contacts
+messagesRouter.get("/unread", requireAuth, async (c) => {
+  const userId = c.get("userId");
+
+  // Get all conversations where this user is sender or recipient
+  const allConvos = await db.select().from(conversations).where(
+    or(eq(conversations.senderId, userId), eq(conversations.recipientId, userId))
+  );
+
+  // Get all read receipts for this user
+  const receipts = await db.select().from(chatReadReceipts).where(eq(chatReadReceipts.userId, userId));
+  const receiptMap = new Map(receipts.map((r) => [`${r.workspaceId}:${r.contactId}`, r.lastReadAt]));
+
+  // Group conversations by workspace+contact
+  const contactConvos: Record<string, { workspaceId: string; contactId: string; convoIds: string[] }> = {};
+  for (const convo of allConvos) {
+    const contactId = convo.senderId === userId ? convo.recipientId : convo.senderId;
+    if (!contactId) continue;
+    const key = `${convo.workspaceId}:${contactId}`;
+    if (!contactConvos[key]) contactConvos[key] = { workspaceId: convo.workspaceId, contactId, convoIds: [] };
+    contactConvos[key].convoIds.push(convo.id);
+  }
+
+  // Count unread messages per contact
+  const unreadCounts: { workspaceId: string; contactId: string; count: number }[] = [];
+  for (const [key, info] of Object.entries(contactConvos)) {
+    const lastRead = receiptMap.get(key) ?? new Date(0);
+
+    let count = 0;
+    for (const convoId of info.convoIds) {
+      const unread = await db.select({ id: messages.id }).from(messages).where(
+        and(
+          eq(messages.conversationId, convoId),
+          eq(messages.senderId, info.contactId),
+          gt(messages.createdAt, lastRead)
+        )
+      );
+      count += unread.length;
+    }
+
+    if (count > 0) {
+      unreadCounts.push({ workspaceId: info.workspaceId, contactId: info.contactId, count });
+    }
+  }
+
+  return c.json({ unread: unreadCounts });
 });
 
 function formatDuration(ms: number): string {
