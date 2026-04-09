@@ -24,6 +24,7 @@ export type Workspace = {
   role: "admin" | "member";
   memberCount: number;
   createdAt: string;
+  addedBy: string | null;
 };
 
 export type WorkspaceMember = {

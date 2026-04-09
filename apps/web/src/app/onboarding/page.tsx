@@ -333,14 +333,77 @@ function PreferencesStep({ user, onComplete }: { user: any; onComplete: () => vo
   );
 }
 
+// -- Step 4: Your Workspaces --
+function WorkspacesStep({ onNext }: { onNext: () => void }) {
+  const [workspaces, setWorkspaces] = useState<{ id: string; name: string; role: string; memberCount: number; addedBy: string | null }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.workspaces.list().then((res) => {
+      setWorkspaces((res as any).workspaces ?? []);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="text-center py-12 px-6">
+        <p className="text-gray-400">Loading...</p>
+      </div>
+    );
+  }
+
+  if (workspaces.length === 0) {
+    // No workspaces — skip this step
+    onNext();
+    return null;
+  }
+
+  return (
+    <div className="py-8 px-6">
+      <div className="text-center mb-6">
+        <div className="text-5xl mb-4">🥑</div>
+        <h2 className="text-xl font-bold text-gray-900 mb-1">Your Workspaces</h2>
+        <p className="text-gray-400 text-sm">You&apos;ve been added to the following workspaces</p>
+      </div>
+
+      <div className="space-y-3 mb-8">
+        {workspaces.map((ws) => (
+          <div key={ws.id} className="bg-gray-50 rounded-xl p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-gray-900">{ws.name}</h3>
+                {ws.addedBy && (
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    <span className="font-medium text-green-primary">{ws.addedBy}</span> added you
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400">{ws.memberCount} {ws.memberCount === 1 ? "member" : "members"}</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-primary/10 text-green-primary capitalize">{ws.role}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <button
+        onClick={onNext}
+        className="w-full py-3 bg-green-primary text-white rounded-xl font-medium hover:bg-green-primary/90 transition-colors"
+      >
+        Go to Dashboard
+      </button>
+    </div>
+  );
+}
+
 // -- Main --
 export default function OnboardingPage() {
   const router = useRouter();
   const { user, loading } = useAuth();
   const [step, setStep] = useState(0);
 
-  // Step indicators
-  const steps = ["Welcome", "How it works", "Preferences"];
+  const steps = ["Welcome", "How it works", "Preferences", "Workspaces"];
 
   return (
     <div className="min-h-screen bg-cream py-8 md:py-12 px-4 flex items-start justify-center">
@@ -363,8 +426,11 @@ export default function OnboardingPage() {
           {step === 2 && (
             <PreferencesStep
               user={user}
-              onComplete={() => router.push("/dashboard")}
+              onComplete={() => setStep(3)}
             />
+          )}
+          {step === 3 && (
+            <WorkspacesStep onNext={() => router.push("/dashboard")} />
           )}
         </div>
       </div>

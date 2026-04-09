@@ -24,10 +24,16 @@ workspacesRouter.get("/", requireAuth, async (c) => {
       const members = await db.select({ id: workspaceMembers.id })
         .from(workspaceMembers)
         .where(eq(workspaceMembers.workspaceId, m.workspace.id));
+      // Find the admin who added this user
+      const [admin] = await db.select({ name: users.name })
+        .from(workspaceMembers)
+        .innerJoin(users, eq(workspaceMembers.userId, users.id))
+        .where(and(eq(workspaceMembers.workspaceId, m.workspace.id), eq(workspaceMembers.role, "admin")));
       return {
         ...m.workspace,
         role: m.role,
         memberCount: members.length,
+        addedBy: m.role !== "admin" ? (admin?.name ?? null) : null,
       };
     })
   );
