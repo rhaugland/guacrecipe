@@ -9,6 +9,7 @@ preferences.get("/", requireAuth, async (c) => {
   const user = c.get("user");
   return c.json({
     preferredChannel: user.preferredChannel,
+    notificationChannels: user.notificationChannels,
     notificationTimings: user.notificationTimings,
     notificationsEnabled: user.notificationsEnabled,
     workingHoursEnabled: user.workingHoursEnabled,
@@ -16,6 +17,9 @@ preferences.get("/", requireAuth, async (c) => {
     workingHoursEnd: user.workingHoursEnd,
     workingHoursTimezone: user.workingHoursTimezone,
     workingHoursDays: user.workingHoursDays,
+    discordId: user.discordId,
+    slackId: user.slackId,
+    slackTeamId: user.slackTeamId,
   });
 });
 
@@ -24,9 +28,9 @@ preferences.patch("/", requireAuth, async (c) => {
   const body = await c.req.json();
 
   const allowedFields = [
-    "preferredChannel", "notificationTimings", "notificationsEnabled",
+    "preferredChannel", "notificationChannels", "notificationTimings", "notificationsEnabled",
     "workingHoursEnabled", "workingHoursStart", "workingHoursEnd",
-    "workingHoursTimezone", "workingHoursDays",
+    "workingHoursTimezone", "workingHoursDays", "discordId", "slackId",
   ] as const;
 
   const updates: Record<string, unknown> = { updatedAt: new Date() };

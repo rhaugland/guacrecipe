@@ -1,10 +1,12 @@
-export type Channel = "sms" | "email" | "both";
+export type Channel = "sms" | "email" | "both" | "discord" | "slack";
 
 export type User = {
   id: string;
   name: string | null;
   email: string | null;
   phone: string | null;
+  discordId: string | null;
+  slackId: string | null;
   preferredChannel: Channel;
   notificationTimings: string[];
   workingHoursEnabled: boolean;
@@ -31,9 +33,12 @@ export type WorkspaceMember = {
   phone: string | null;
   role: "admin" | "member";
   preferredChannel: Channel;
+  notificationChannels: string[];
   workingHoursEnabled: boolean;
   notificationsEnabled: boolean;
   addedAt: string;
+  workspaceEmail: string | null;
+  workspacePhone: string | null;
 };
 
 export type ActivityItem = {
@@ -46,8 +51,19 @@ export type ActivityItem = {
   timestamp: string;
 };
 
+export type ChatMessage = {
+  id: string;
+  senderId: string;
+  body: string;
+  direction: "inbound" | "outbound";
+  channel: string;
+  deliveryStatus: "delivered" | "queued" | "pending" | "failed";
+  createdAt: string;
+};
+
 export type Preferences = {
   preferredChannel: Channel;
+  notificationChannels: string[];
   notificationTimings: string[];
   notificationsEnabled: boolean;
   workingHoursEnabled: boolean;
@@ -55,4 +71,6 @@ export type Preferences = {
   workingHoursEnd: string;
   workingHoursTimezone: string;
   workingHoursDays: number[];
+  discordId: string | null;
+  slackId: string | null;
 };

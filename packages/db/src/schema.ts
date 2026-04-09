@@ -12,7 +12,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
-export const channelEnum = pgEnum("channel", ["sms", "email", "both"]);
+export const channelEnum = pgEnum("channel", ["sms", "email", "both", "discord", "slack"]);
 export const roleEnum = pgEnum("role", ["admin", "member"]);
 export const conversationStatusEnum = pgEnum("conversation_status", ["active", "expired"]);
 export const deliveryStatusEnum = pgEnum("delivery_status", ["delivered", "queued", "pending", "failed"]);
@@ -25,6 +25,9 @@ export const users = pgTable("users", {
   name: varchar("name", { length: 255 }),
   email: varchar("email", { length: 255 }).unique(),
   phone: varchar("phone", { length: 20 }).unique(),
+  discordId: varchar("discord_id", { length: 50 }).unique(),
+  slackId: varchar("slack_id", { length: 50 }).unique(),
+  slackTeamId: varchar("slack_team_id", { length: 50 }),
   preferredChannel: channelEnum("preferred_channel").default("email"),
   notificationTimings: jsonb("notification_timings").$type<string[]>().default(["2_weeks", "1_week", "3_days", "2_days", "day_of"]),
   workingHoursEnabled: boolean("working_hours_enabled").default(true),
@@ -32,6 +35,7 @@ export const users = pgTable("users", {
   workingHoursEnd: time("working_hours_end").default("17:00"),
   workingHoursTimezone: varchar("working_hours_timezone", { length: 50 }).default("America/New_York"),
   workingHoursDays: jsonb("working_hours_days").$type<number[]>().default([1, 2, 3, 4, 5]),
+  notificationChannels: jsonb("notification_channels").$type<string[]>().default(["email"]),
   notificationsEnabled: boolean("notifications_enabled").default(true),
   onboarded: boolean("onboarded").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -119,6 +123,26 @@ export const disambiguationSessions = pgTable("disambiguation_sessions", {
   resolvedRecipientId: uuid("resolved_recipient_id").references(() => users.id),
   status: disambiguationStatusEnum("status").default("pending").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const workspaceContactOverrides = pgTable("workspace_contact_overrides", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id).notNull(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  email: varchar("email", { length: 255 }),
+  phone: varchar("phone", { length: 20 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("workspace_contact_unique").on(table.workspaceId, table.userId),
+]);
+
+export const slackInstallations = pgTable("slack_installations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  teamId: varchar("team_id", { length: 50 }).unique().notNull(),
+  teamName: varchar("team_name", { length: 255 }),
+  botToken: varchar("bot_token", { length: 255 }).notNull(),
+  installedBy: uuid("installed_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

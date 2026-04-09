@@ -9,6 +9,9 @@ import messagesRouter from "./routes/messages";
 import telnyxWebhook from "./routes/webhooks/telnyx";
 import resendWebhook from "./routes/webhooks/resend";
 import mailgunWebhook from "./routes/webhooks/mailgun";
+import slackWebhook from "./routes/webhooks/slack";
+import slackOauth from "./routes/slack-oauth";
+import { startDiscordGateway } from "./routes/webhooks/discord";
 import cron from "./routes/cron";
 
 const app = new Hono();
@@ -30,10 +33,13 @@ app.route("/api/messages", messagesRouter);
 app.route("/api/webhooks/telnyx", telnyxWebhook);
 app.route("/api/webhooks/resend", resendWebhook);
 app.route("/api/webhooks/mailgun", mailgunWebhook);
+app.route("/api/webhooks/slack", slackWebhook);
+app.route("/api/slack", slackOauth);
 app.route("/api/cron", cron);
 
 serve({ fetch: app.fetch, port: 3003 }, (info) => {
   console.log(`Guac API running on http://localhost:${info.port}`);
+  startDiscordGateway();
 });
 
 export default app;

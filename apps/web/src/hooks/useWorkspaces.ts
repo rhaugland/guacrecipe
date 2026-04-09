@@ -32,5 +32,9 @@ export function useWorkspaces() {
     await api.workspaces.removeMember(workspaceId, userId);
   };
 
-  return { workspaces, loading, create, getMembers, addMember, removeMember, refresh };
+  const setWorkspaceContact = async (workspaceId: string, contact: { email?: string; phone?: string }) => {
+    await api.workspaces.setContact(workspaceId, contact);
+  };
+
+  return { workspaces, loading, create, getMembers, addMember, removeMember, setWorkspaceContact, refresh };
 }

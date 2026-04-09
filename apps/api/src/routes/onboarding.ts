@@ -9,14 +9,14 @@ onboarding.post("/", requireAuth, async (c) => {
   const userId = c.get("userId");
   const body = await c.req.json();
 
-  const { name, email, phone, preferredChannel, notificationTimings, workingHoursStart, workingHoursEnd, workingHoursTimezone, workingHoursDays } = body;
+  const { name, email, phone, discordId, slackId, preferredChannel, notificationChannels, notificationTimings, workingHoursEnabled, workingHoursStart, workingHoursEnd, workingHoursTimezone, workingHoursDays } = body;
 
   if (!name || !preferredChannel) {
     return c.json({ error: "Name and preferred channel are required" }, 400);
   }
 
-  if (!email && !phone) {
-    return c.json({ error: "Both email and phone are required" }, 400);
+  if (!email) {
+    return c.json({ error: "Email is required" }, 400);
   }
 
   // Merge any placeholder accounts that were added to workspaces by the other contact method
@@ -64,8 +64,12 @@ onboarding.post("/", requireAuth, async (c) => {
     name,
     email: email ?? undefined,
     phone: phone ?? undefined,
+    discordId: discordId ?? undefined,
+    slackId: slackId ?? undefined,
     preferredChannel,
+    notificationChannels: notificationChannels ?? [preferredChannel],
     notificationTimings: notificationTimings ?? [],
+    workingHoursEnabled: workingHoursEnabled ?? true,
     workingHoursStart: workingHoursStart ?? "09:00",
     workingHoursEnd: workingHoursEnd ?? "17:00",
     workingHoursTimezone: workingHoursTimezone ?? "America/New_York",

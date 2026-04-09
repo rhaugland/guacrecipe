@@ -57,8 +57,16 @@ export const api = {
       request(`/api/workspaces/${id}/members`, { method: "POST", body: JSON.stringify(data) }),
     removeMember: (workspaceId: string, userId: string) =>
       request(`/api/workspaces/${workspaceId}/members/${userId}`, { method: "DELETE" }),
+    setContact: (workspaceId: string, data: { email?: string; phone?: string }) =>
+      request(`/api/workspaces/${workspaceId}/contact`, { method: "PUT", body: JSON.stringify(data) }),
   },
   activity: {
     recent: () => request<{ activity: import("./types").ActivityItem[] }>("/api/messages/recent"),
+  },
+  messages: {
+    send: (data: { workspaceId: string; recipientId: string; body: string }) =>
+      request("/api/messages/send", { method: "POST", body: JSON.stringify(data) }),
+    conversation: (workspaceId: string, recipientId: string) =>
+      request<{ messages: import("./types").ChatMessage[] }>(`/api/messages/conversation/${workspaceId}/${recipientId}`),
   },
 };

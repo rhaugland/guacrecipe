@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { requireAuth } from "../middleware/auth";
-import { db, workspaces, workspaceMembers, users } from "@guac/db";
+import { db, workspaces, workspaceMembers, users, workspaceContactOverrides } from "@guac/db";
 import { eq, and } from "drizzle-orm";
 import { createMagicLink } from "../services/magic-link";
 
@@ -76,18 +76,29 @@ workspacesRouter.get("/:id/members", requireAuth, async (c) => {
     .innerJoin(users, eq(workspaceMembers.userId, users.id))
     .where(eq(workspaceMembers.workspaceId, workspaceId));
 
+  const overrides = await db.select().from(workspaceContactOverrides)
+    .where(eq(workspaceContactOverrides.workspaceId, workspaceId));
+
+  const overrideMap = new Map(overrides.map((o) => [o.userId, o]));
+
   return c.json({
-    members: members.map((m) => ({
-      id: m.user.id,
-      name: m.user.name,
-      email: m.user.email,
-      phone: m.user.phone,
-      role: m.role,
-      preferredChannel: m.user.preferredChannel,
-      workingHoursEnabled: m.user.workingHoursEnabled,
-      notificationsEnabled: m.user.notificationsEnabled,
-      addedAt: m.addedAt,
-    })),
+    members: members.map((m) => {
+      const override = overrideMap.get(m.user.id);
+      return {
+        id: m.user.id,
+        name: m.user.name,
+        email: m.user.email,
+        phone: m.user.phone,
+        role: m.role,
+        preferredChannel: m.user.preferredChannel,
+        notificationChannels: m.user.notificationChannels ?? [m.user.preferredChannel ?? "email"],
+        workingHoursEnabled: m.user.workingHoursEnabled,
+        notificationsEnabled: m.user.notificationsEnabled,
+        addedAt: m.addedAt,
+        workspaceEmail: override?.email ?? null,
+        workspacePhone: override?.phone ?? null,
+      };
+    }),
   });
 });
 
@@ -171,6 +182,50 @@ workspacesRouter.delete("/:id/members/:userId", requireAuth, async (c) => {
   );
 
   return c.json({ success: true });
+});
+
+// Get my contact override for a workspace
+workspacesRouter.get("/:id/contact", requireAuth, async (c) => {
+  const workspaceId = c.req.param("id");
+  const userId = c.get("userId");
+
+  const [override] = await db.select().from(workspaceContactOverrides).where(
+    and(eq(workspaceContactOverrides.workspaceId, workspaceId), eq(workspaceContactOverrides.userId, userId))
+  );
+
+  return c.json({ contact: override ?? null });
+});
+
+// Set my contact override for a workspace
+workspacesRouter.put("/:id/contact", requireAuth, async (c) => {
+  const workspaceId = c.req.param("id");
+  const userId = c.get("userId");
+  const { email, phone } = await c.req.json();
+
+  const [membership] = await db.select().from(workspaceMembers).where(
+    and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId))
+  );
+  if (!membership) return c.json({ error: "Not a member" }, 403);
+
+  const [existing] = await db.select().from(workspaceContactOverrides).where(
+    and(eq(workspaceContactOverrides.workspaceId, workspaceId), eq(workspaceContactOverrides.userId, userId))
+  );
+
+  if (existing) {
+    const [updated] = await db.update(workspaceContactOverrides).set({
+      email: email ?? null,
+      phone: phone ?? null,
+    }).where(eq(workspaceContactOverrides.id, existing.id)).returning();
+    return c.json({ contact: updated });
+  } else {
+    const [created] = await db.insert(workspaceContactOverrides).values({
+      workspaceId,
+      userId,
+      email: email ?? null,
+      phone: phone ?? null,
+    }).returning();
+    return c.json({ contact: created });
+  }
 });
 
 export default workspacesRouter;

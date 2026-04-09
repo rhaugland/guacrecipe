@@ -21,12 +21,14 @@ export function QuickToggles({ prefs, onUpdate }: Props) {
         </button>
         <button
           onClick={() => {
-            const next = prefs.preferredChannel === "email" ? "sms" : prefs.preferredChannel === "sms" ? "both" : "email";
+            const order: Array<"email" | "sms" | "discord" | "slack" | "both"> = ["email", "sms", "discord", "slack", "both"];
+            const idx = order.indexOf(prefs.preferredChannel as any);
+            const next = order[(idx + 1) % order.length];
             onUpdate({ preferredChannel: next });
           }}
           className="px-4 py-2 rounded-lg text-sm font-medium bg-green-light text-green-primary"
         >
-          Via: {prefs.preferredChannel === "sms" ? "Text" : prefs.preferredChannel === "both" ? "Both" : "Email"}
+          Via: {{ email: "Email", sms: "Text", discord: "Discord", slack: "Slack", both: "Both" }[prefs.preferredChannel] ?? prefs.preferredChannel}
         </button>
         <button
           onClick={() => onUpdate({ workingHoursEnabled: !prefs.workingHoursEnabled })}

@@ -46,8 +46,9 @@ auth.post("/magic-link", async (c) => {
   if (email) {
     const sent = await sendEmail(
       email,
-      "Your Guac login link",
-      `Click here to sign in to Guac:\n\n${magicUrl}\n\nThis link expires in 5 days.`
+      "Your Guac login link 🥑",
+      `Click the button below to sign in to Guac.\n\nThis link expires in 5 days.`,
+      { ctaText: "Sign in to Guac", ctaUrl: magicUrl }
     );
     if (!sent) {
       console.error("[auth] Failed to send magic link email to", email);

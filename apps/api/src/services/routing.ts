@@ -1,6 +1,6 @@
-import { db, users, workspaces, workspaceMembers, conversations, messages } from "@guac/db";
+import { db, users, workspaces, workspaceMembers, conversations, messages, workspaceContactOverrides } from "@guac/db";
 import { eq, and, gt, desc } from "drizzle-orm";
-import { deliver, sendSms, sendEmail, formatWorkingHoursAck } from "./delivery";
+import { deliver, sendSms, sendEmail, sendDiscord, sendSlack, formatWorkingHoursAck } from "./delivery";
 import { isWithinWorkingHours, getNextWorkingTime } from "./working-hours";
 import {
   createDisambiguationSession,
@@ -33,8 +33,74 @@ export type RoutingResult =
   | { type: "disambiguate_recipient"; workspaceId: string; options: { userId: string; name: string }[] }
   | { type: "no_workspaces" };
 
-export function resolveRouting(input: RoutingInput): RoutingResult {
-  const { senderWorkspaces, recentConversationUserId, forceDisambiguate } = input;
+/**
+ * Parse @mentions from message body.
+ * Returns matched workspace/member names (lowercased) and the cleaned message body.
+ * Supports: @name, @"workspace name", @workspace-name
+ */
+export function parseMentions(body: string, senderWorkspaces: SenderWorkspace[], senderId: string): {
+  mentionedWorkspace: SenderWorkspace | null;
+  mentionedRecipient: { userId: string; name: string; workspaceId: string } | null;
+  cleanBody: string;
+} {
+  let mentionedWorkspace: SenderWorkspace | null = null;
+  let mentionedRecipient: { userId: string; name: string; workspaceId: string } | null = null;
+  let cleanBody = body;
+
+  // Extract all @mentions — supports @word, @"multi word", @multi-word
+  const mentionPattern = /@"([^"]+)"|@(\S+)/g;
+  const mentions: string[] = [];
+  let match;
+  while ((match = mentionPattern.exec(body)) !== null) {
+    mentions.push((match[1] ?? match[2]).toLowerCase());
+  }
+
+  if (mentions.length === 0) return { mentionedWorkspace, mentionedRecipient, cleanBody };
+
+  // Try to match workspace names
+  for (const mention of mentions) {
+    const ws = senderWorkspaces.find((w) => w.workspaceName.toLowerCase() === mention);
+    if (ws) {
+      mentionedWorkspace = ws;
+      cleanBody = cleanBody.replace(new RegExp(`@"?${escapeRegex(mention)}"?`, "i"), "").trim();
+      break;
+    }
+  }
+
+  // Try to match member names across relevant workspaces
+  const searchWorkspaces = mentionedWorkspace ? [mentionedWorkspace] : senderWorkspaces;
+  for (const mention of mentions) {
+    for (const ws of searchWorkspaces) {
+      const member = ws.members.find(
+        (m) => m.userId !== senderId && m.name.toLowerCase() === mention
+      );
+      if (member) {
+        mentionedRecipient = { userId: member.userId, name: member.name, workspaceId: ws.workspaceId };
+        cleanBody = cleanBody.replace(new RegExp(`@"?${escapeRegex(mention)}"?`, "i"), "").trim();
+        break;
+      }
+      // Also try first-name match
+      const firstNameMatch = ws.members.find(
+        (m) => m.userId !== senderId && m.name.toLowerCase().split(/\s+/)[0] === mention
+      );
+      if (firstNameMatch) {
+        mentionedRecipient = { userId: firstNameMatch.userId, name: firstNameMatch.name, workspaceId: ws.workspaceId };
+        cleanBody = cleanBody.replace(new RegExp(`@"?${escapeRegex(mention)}"?`, "i"), "").trim();
+        break;
+      }
+    }
+    if (mentionedRecipient) break;
+  }
+
+  return { mentionedWorkspace, mentionedRecipient, cleanBody };
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function resolveRouting(input: RoutingInput & { senderId: string }): RoutingResult {
+  const { senderWorkspaces, recentConversationUserId, forceDisambiguate, senderId } = input;
 
   if (senderWorkspaces.length === 0) {
     return { type: "no_workspaces" };
@@ -43,7 +109,6 @@ export function resolveRouting(input: RoutingInput): RoutingResult {
   // Single workspace
   if (senderWorkspaces.length === 1) {
     const ws = senderWorkspaces[0];
-    const senderId = ws.members[0].userId; // sender is always first
     const otherMembers = ws.members.filter((m) => m.userId !== senderId);
 
     if (otherMembers.length === 1) {
@@ -75,28 +140,45 @@ export function resolveRouting(input: RoutingInput): RoutingResult {
   };
 }
 
+async function replyToSender(channel: "sms" | "email" | "discord" | "slack", senderIdentifier: string, msg: string, subject?: string) {
+  if (channel === "sms") await sendSms(senderIdentifier, msg);
+  else if (channel === "email") await sendEmail(senderIdentifier, subject ?? "Guac", msg);
+  else if (channel === "discord") await sendDiscord(senderIdentifier, msg);
+  else if (channel === "slack") await sendSlack(senderIdentifier, msg);
+}
+
 export async function handleInboundMessage(input: {
-  channel: "sms" | "email";
+  channel: "sms" | "email" | "discord" | "slack";
   senderIdentifier: string;
   body: string;
   forceDisambiguate: boolean;
 }) {
   const { channel, senderIdentifier, body, forceDisambiguate } = input;
 
-  // 1. Identify sender — normalize phone to match DB (strip +1 prefix)
+  // 1. Identify sender by channel
   let lookupIdentifier = senderIdentifier;
   if (channel === "sms") {
     const digits = senderIdentifier.replace(/\D/g, "");
     lookupIdentifier = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
   }
-  const [sender] = channel === "sms"
-    ? await db.select().from(users).where(eq(users.phone, lookupIdentifier))
-    : await db.select().from(users).where(eq(users.email, senderIdentifier));
+
+  let senderRows;
+  if (channel === "sms") {
+    senderRows = await db.select().from(users).where(eq(users.phone, lookupIdentifier));
+  } else if (channel === "email") {
+    senderRows = await db.select().from(users).where(eq(users.email, senderIdentifier));
+  } else if (channel === "discord") {
+    senderRows = await db.select().from(users).where(eq(users.discordId, senderIdentifier));
+  } else if (channel === "slack") {
+    senderRows = await db.select().from(users).where(eq(users.slackId, senderIdentifier));
+  } else {
+    return;
+  }
+  const [sender] = senderRows ?? [];
 
   if (!sender) {
-    const msg = "This number/address isn't registered with Guac.";
-    if (channel === "sms") await sendSms(senderIdentifier, msg);
-    else await sendEmail(senderIdentifier, "Guac", msg);
+    const msg = "You're not registered with Guac. Sign up at " + (process.env.APP_URL ?? "https://guacwithme.com");
+    await replyToSender(channel, senderIdentifier, msg);
     return;
   }
 
@@ -140,28 +222,44 @@ export async function handleInboundMessage(input: {
     if (recentConvo) recentConversationUserId = recentConvo.recipientId;
   }
 
-  // 5. Resolve routing
+  // 5. Try @mention parsing first for direct routing
+  const { mentionedWorkspace, mentionedRecipient, cleanBody } = parseMentions(body, senderWorkspaces, sender.id);
+
+  // If both workspace and recipient are resolved via mentions, route directly
+  if (mentionedRecipient) {
+    const wsId = mentionedWorkspace?.workspaceId ?? mentionedRecipient.workspaceId;
+    await routeMessage(sender, wsId, mentionedRecipient.userId, cleanBody, channel, senderIdentifier);
+    return;
+  }
+
+  // If only workspace is mentioned, narrow down to that workspace for disambiguation
+  const effectiveWorkspaces = mentionedWorkspace
+    ? senderWorkspaces.filter((ws) => ws.workspaceId === mentionedWorkspace.workspaceId)
+    : senderWorkspaces;
+  const effectiveBody = mentionedWorkspace ? cleanBody : body;
+
+  // 6. Resolve routing
   const result = resolveRouting({
-    senderWorkspaces,
+    senderId: sender.id,
+    senderWorkspaces: effectiveWorkspaces,
     recentConversationUserId,
     forceDisambiguate,
   });
 
   switch (result.type) {
     case "direct":
-      await routeMessage(sender, result.workspaceId, result.recipientId, body, channel, senderIdentifier);
+      await routeMessage(sender, result.workspaceId, result.recipientId, effectiveBody, channel, senderIdentifier);
       break;
     case "disambiguate_workspace": {
       const options = result.options.map((o) => ({ value: o.workspaceId, label: o.workspaceName }));
       await createDisambiguationSession({
         senderId: sender.id,
-        originalMessage: body,
+        originalMessage: effectiveBody,
         step: "workspace",
         options,
       });
       const msg = formatDisambiguationMessage("workspace", options);
-      if (channel === "sms") await sendSms(senderIdentifier, msg);
-      else await sendEmail(senderIdentifier, "Guac — Which workspace?", msg);
+      await replyToSender(channel, senderIdentifier, msg, "Guac — Which workspace?");
       break;
     }
     case "disambiguate_recipient": {
@@ -171,20 +269,18 @@ export async function handleInboundMessage(input: {
       ];
       await createDisambiguationSession({
         senderId: sender.id,
-        originalMessage: body,
+        originalMessage: effectiveBody,
         step: "recipient",
         options,
         resolvedWorkspaceId: result.workspaceId,
       });
       const msg = formatDisambiguationMessage("recipient", options);
-      if (channel === "sms") await sendSms(senderIdentifier, msg);
-      else await sendEmail(senderIdentifier, "Guac — Who should receive this?", msg);
+      await replyToSender(channel, senderIdentifier, msg, "Guac — Who should receive this?");
       break;
     }
     case "no_workspaces": {
       const msg = "You're not in any workspaces yet. Ask an admin to add you.";
-      if (channel === "sms") await sendSms(senderIdentifier, msg);
-      else await sendEmail(senderIdentifier, "Guac", msg);
+      await replyToSender(channel, senderIdentifier, msg);
       break;
     }
   }
@@ -194,14 +290,13 @@ async function handleDisambiguationReply(
   sender: typeof users.$inferSelect,
   session: any,
   reply: string,
-  channel: "sms" | "email",
+  channel: "sms" | "email" | "discord" | "slack",
   senderIdentifier: string,
 ) {
   const selected = parseDisambiguationReply(reply, session.options);
   if (!selected) {
     const msg = "Invalid selection. " + formatDisambiguationMessage(session.step, session.options);
-    if (channel === "sms") await sendSms(senderIdentifier, msg);
-    else await sendEmail(senderIdentifier, "Guac — Try again", msg);
+    await replyToSender(channel, senderIdentifier, msg, "Guac — Try again");
     return;
   }
 
@@ -227,8 +322,7 @@ async function handleDisambiguationReply(
         resolvedWorkspaceId: selected.value,
       });
       const msg = formatDisambiguationMessage("recipient", options);
-      if (channel === "sms") await sendSms(senderIdentifier, msg);
-      else await sendEmail(senderIdentifier, "Guac — Who should receive this?", msg);
+      await replyToSender(channel, senderIdentifier, msg, "Guac — Who should receive this?");
     }
   } else {
     await resolveDisambiguationSession(session.id, { status: "resolved", resolvedRecipientId: selected.value });
@@ -248,17 +342,22 @@ async function handleDisambiguationReply(
   }
 }
 
-async function routeMessage(
+export async function routeMessage(
   sender: typeof users.$inferSelect,
   workspaceId: string,
   recipientId: string,
   body: string,
-  senderChannel: "sms" | "email",
+  senderChannel: "sms" | "email" | "discord" | "slack",
   senderIdentifier: string,
 ) {
   const [recipient] = await db.select().from(users).where(eq(users.id, recipientId));
   const [workspace] = await db.select().from(workspaces).where(eq(workspaces.id, workspaceId));
   if (!recipient || !workspace) return;
+
+  // Check for workspace-specific contact overrides
+  const [contactOverride] = await db.select().from(workspaceContactOverrides).where(
+    and(eq(workspaceContactOverrides.workspaceId, workspaceId), eq(workspaceContactOverrides.userId, recipientId))
+  );
 
   const [conversation] = await db.insert(conversations).values({
     workspaceId,
@@ -281,15 +380,25 @@ async function routeMessage(
   const notificationsOn = recipient.notificationsEnabled ?? true;
 
   if (withinHours && notificationsOn) {
-    const success = await deliver({
-      channel: recipient.preferredChannel ?? "email",
-      toEmail: recipient.email ?? undefined,
-      toPhone: recipient.phone ?? undefined,
+    const channels = (recipient.notificationChannels as string[] | null)?.length
+      ? (recipient.notificationChannels as string[])
+      : [recipient.preferredChannel ?? "email"];
+
+    const deliveryInput = {
+      toEmail: contactOverride?.email ?? recipient.email ?? undefined,
+      toPhone: contactOverride?.phone ?? recipient.phone ?? undefined,
+      toDiscordId: recipient.discordId ?? undefined,
+      toSlackId: recipient.slackId ?? undefined,
       senderName: sender.name ?? "Someone",
       workspaceName: workspace.name,
       body,
       conversationId: conversation.id,
-    });
+    };
+
+    const results = await Promise.all(
+      channels.map((ch) => deliver({ ...deliveryInput, channel: ch as any }))
+    );
+    const success = results.some(Boolean);
 
     await db.insert(messages).values({
       conversationId: conversation.id,
@@ -319,7 +428,6 @@ async function routeMessage(
       ? formatWorkingHoursAck({ recipientName: recipient.name ?? "Recipient", nextAvailable: deliverAt! })
       : `${recipient.name ?? "Recipient"} has notifications paused. Your message is queued.`;
 
-    if (senderChannel === "sms") await sendSms(senderIdentifier, ackMsg);
-    else await sendEmail(senderIdentifier, "Guac — Message queued", ackMsg);
+    await replyToSender(senderChannel, senderIdentifier, ackMsg, "Guac — Message queued");
   }
 }
