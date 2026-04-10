@@ -551,69 +551,90 @@ export default function ChatPage() {
   ) : null;
 
   const broadcastPanel = (
-    <div className="flex-1 flex flex-col">
-      <div className="px-4 md:px-6 py-3 border-b border-gray-100 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <button onClick={handleBack} className="md:hidden text-gray-400 hover:text-gray-600 p-1">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <h3 className="text-sm font-semibold text-gray-700">Broadcast Message</h3>
-        </div>
-        <button onClick={() => { setShowBroadcast(false); setMobileView("list"); }} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+    <div className="flex-1 flex flex-col min-h-0">
+      {/* Header */}
+      <div className="px-2 md:px-6 py-2.5 md:py-3 border-b border-gray-100 flex items-center gap-1.5 md:gap-3 bg-white/95 backdrop-blur-sm">
+        <button onClick={handleBack} className="md:hidden text-green-primary p-1.5 -ml-0.5 flex items-center gap-0.5">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+          <span className="text-[15px] font-normal md:hidden">Back</span>
+        </button>
+        <h3 className="flex-1 text-[15px] font-semibold text-gray-900">Broadcast</h3>
+        <button onClick={() => { setShowBroadcast(false); setMobileView("list"); }} className="text-sm text-gray-400 hover:text-gray-600 hidden md:block">Cancel</button>
       </div>
-      <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4">
-        <p className="text-sm text-gray-500 mb-4">
-          Send one message to every member in a workspace. Each person receives it on their preferred channel.
-        </p>
-        <div className="space-y-3">
-          <div>
-            <label className="text-xs text-gray-500 mb-1 block">Workspace</label>
-            <select
-              value={broadcastWorkspace ?? ""}
-              onChange={(e) => { setBroadcastWorkspace(e.target.value || null); setBroadcastResult(null); }}
-              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 bg-white"
-            >
-              <option value="">Select workspace...</option>
-              {workspaces.map((ws) => (
-                <option key={ws.id} value={ws.id}>{ws.name}</option>
-              ))}
-            </select>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto px-4 md:px-6 py-6">
+        <div className="flex flex-col items-center text-center mb-6">
+          <div className="w-14 h-14 bg-green-primary/10 rounded-full flex items-center justify-center mb-3">
+            <svg className="w-7 h-7 text-green-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 1 1 0-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 0 1-1.44-4.282m3.102.069a18.03 18.03 0 0 1-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 0 1 8.835 2.535M10.34 6.66a23.847 23.847 0 0 0 8.835-2.535m0 0A23.74 23.74 0 0 0 18.795 3m.38 1.125a23.91 23.91 0 0 1 1.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 0 0 1.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 0 1 0 3.46" />
+            </svg>
           </div>
-          {broadcastWorkspace && (
-            <div className="bg-green-light rounded-xl p-3">
-              <p className="text-xs text-green-primary">
-                This will deliver to {contacts.filter((c) => c.workspaceId === broadcastWorkspace).length} member(s), each on their preferred channel.
-              </p>
-            </div>
-          )}
+          <p className="text-[15px] text-gray-500">
+            Send one message to every member in a workspace. Each person receives it on their preferred channel.
+          </p>
         </div>
+
+        {/* Workspace selector */}
+        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">Workspace</label>
+        <select
+          value={broadcastWorkspace ?? ""}
+          onChange={(e) => { setBroadcastWorkspace(e.target.value || null); setBroadcastResult(null); }}
+          className="w-full px-4 py-3 rounded-xl border border-gray-200 text-[16px] md:text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 bg-white appearance-none"
+        >
+          <option value="">Select workspace...</option>
+          {workspaces.map((ws) => (
+            <option key={ws.id} value={ws.id}>{ws.name}</option>
+          ))}
+        </select>
+
+        {broadcastWorkspace && (
+          <div className="mt-3 bg-green-primary/5 rounded-xl p-3 border border-green-primary/10">
+            <p className="text-sm text-green-primary font-medium">
+              Delivering to {contacts.filter((c) => c.workspaceId === broadcastWorkspace).length} member(s) via their preferred channels
+            </p>
+          </div>
+        )}
+
         {broadcastResult && (
-          <div className="mt-4 bg-green-light rounded-xl p-4 text-center">
-            <span className="text-2xl">🥑</span>
-            <p className="text-sm font-medium text-green-primary mt-1">
-              Broadcast sent to {broadcastResult.sent}/{broadcastResult.total} members
+          <div className="mt-4 bg-green-light rounded-2xl p-6 text-center">
+            <span className="text-3xl">🥑</span>
+            <p className="text-base font-semibold text-green-primary mt-2">
+              Broadcast sent!
+            </p>
+            <p className="text-sm text-green-primary/70 mt-1">
+              {broadcastResult.sent}/{broadcastResult.total} members reached
             </p>
           </div>
         )}
       </div>
-      <form onSubmit={handleBroadcast} className="px-4 md:px-6 py-3 border-t border-gray-100 flex gap-2">
-        <input
-          type="text"
-          value={broadcastDraft}
-          onChange={(e) => setBroadcastDraft(e.target.value)}
-          placeholder="Type your broadcast message..."
-          className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30"
-          autoFocus
-        />
-        <button
-          type="submit"
-          disabled={broadcastSending || !broadcastDraft.trim() || !broadcastWorkspace}
-          className="px-4 md:px-5 py-2.5 bg-green-primary text-white rounded-xl text-sm font-medium hover:bg-green-primary/90 transition-colors disabled:opacity-50"
-        >
-          {broadcastSending ? "..." : "Send All"}
-        </button>
+
+      {/* Input pinned to bottom */}
+      <form onSubmit={handleBroadcast} className="px-3 md:px-6 py-2 md:py-3 border-t border-gray-100 bg-white">
+        <div className="flex gap-2 items-end">
+          <input
+            type="text"
+            value={broadcastDraft}
+            onChange={(e) => setBroadcastDraft(e.target.value)}
+            placeholder="Type your broadcast..."
+            className="flex-1 px-4 py-2.5 rounded-full border border-gray-200 text-[16px] focus:outline-none focus:ring-2 focus:ring-green-primary/30 bg-gray-50"
+          />
+          <button
+            type="submit"
+            disabled={broadcastSending || !broadcastDraft.trim() || !broadcastWorkspace}
+            className="w-9 h-9 flex items-center justify-center bg-green-primary text-white rounded-full hover:bg-green-primary/90 transition-colors disabled:opacity-30 flex-shrink-0"
+          >
+            {broadcastSending ? (
+              <span className="text-xs font-bold">...</span>
+            ) : (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" />
+              </svg>
+            )}
+          </button>
+        </div>
       </form>
     </div>
   );
