@@ -663,21 +663,26 @@ export default function ChatPage() {
       </div>
 
       {/* Mobile: contact list (always rendered, visible when no overlay) */}
-      <div className={`md:hidden bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col ${mobileShowOverlay ? "hidden" : ""}`} style={{ height: "calc(100dvh - 140px)" }}>
+      <div className={`md:hidden bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col relative ${mobileShowOverlay ? "hidden" : ""}`} style={{ height: "calc(100dvh - 140px)" }}>
         <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
           <h2 className="text-base font-bold text-gray-900">Messages</h2>
-          <div className="flex items-center gap-3">
-            <button onClick={() => { setShowBroadcast(true); setMobileView("chat"); }} className="text-sm text-gray-400 font-medium hover:text-green-primary">
-              Broadcast
-            </button>
-            <button onClick={() => { setShowNewChat(true); setMobileView("chat"); }} className="w-8 h-8 bg-green-primary text-white rounded-full flex items-center justify-center">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-              </svg>
-            </button>
-          </div>
+          <button onClick={() => { setShowNewChat(true); setMobileView("chat"); }} className="w-8 h-8 bg-green-primary text-white rounded-full flex items-center justify-center">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
         </div>
-        <div className="flex-1 overflow-y-auto">{contactList}</div>
+        <div className="flex-1 overflow-y-auto pb-16">{contactList}</div>
+        {/* Floating broadcast button */}
+        <button
+          onClick={() => { setShowBroadcast(true); setMobileView("chat"); }}
+          className="absolute bottom-4 left-4 right-4 py-3 bg-green-primary/10 text-green-primary rounded-2xl text-sm font-medium flex items-center justify-center gap-2 hover:bg-green-primary/15 active:bg-green-primary/20 transition-colors border border-green-primary/20 backdrop-blur-sm shadow-sm"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 1 1 0-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 0 1-1.44-4.282m3.102.069a18.03 18.03 0 0 1-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 0 1 8.835 2.535M10.34 6.66a23.847 23.847 0 0 0 8.835-2.535m0 0A23.74 23.74 0 0 0 18.795 3m.38 1.125a23.91 23.91 0 0 1 1.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 0 0 1.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 0 1 0 3.46" />
+          </svg>
+          Send one message to your entire workspace
+        </button>
       </div>
 
       {/* Mobile: full-screen overlay for conversation / new chat / broadcast */}
