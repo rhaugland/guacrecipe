@@ -312,16 +312,16 @@ export default function ChatPage() {
                 <button
                   key={`${wsId}-${c.id}`}
                   onClick={() => handleSelectContact(c)}
-                  className={`w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors ${
+                  className={`w-full px-3 py-2.5 flex items-center gap-2.5 hover:bg-gray-50 transition-colors ${
                     selected?.id === c.id && selected?.workspaceId === c.workspaceId ? "bg-green-light" : ""
                   }`}
                 >
                   <div className="relative flex-shrink-0">
-                    <div className="w-10 h-10 md:w-8 md:h-8 rounded-full bg-green-primary/10 flex items-center justify-center text-green-primary text-sm font-medium">
+                    <div className="w-9 h-9 rounded-full bg-green-primary/10 flex items-center justify-center text-green-primary text-sm font-medium">
                       {(c.name ?? "?")[0].toUpperCase()}
                     </div>
                     {unread > 0 && (
-                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-green-primary text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                      <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-green-primary text-white text-[9px] font-bold rounded-full flex items-center justify-center">
                         {unread > 9 ? "9+" : unread}
                       </span>
                     )}
@@ -333,9 +333,9 @@ export default function ChatPage() {
                     </div>
                   </div>
                   {unread > 0 ? (
-                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-green-primary" />
+                    <span className="w-2 h-2 rounded-full flex-shrink-0 bg-green-primary" />
                   ) : (
-                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${c.notificationsEnabled ? "bg-green-secondary" : "bg-gray-300"}`} />
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${c.notificationsEnabled ? "bg-green-secondary" : "bg-gray-300"}`} />
                   )}
                 </button>
               );
@@ -391,38 +391,26 @@ export default function ChatPage() {
   const chatArea = selected ? (
     <div className="flex-1 flex flex-col min-h-0">
       {/* Chat header */}
-      <div className="px-4 md:px-6 py-3 border-b border-gray-100 flex items-center gap-3 relative">
-        <button onClick={handleBack} className="md:hidden text-gray-400 hover:text-gray-600 p-1 -ml-1">
+      <div className="px-3 md:px-6 py-2 md:py-3 border-b border-gray-100 flex items-center gap-2 md:gap-3 relative">
+        <button onClick={handleBack} className="md:hidden text-gray-400 hover:text-gray-600 -ml-1">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
         <button
           onClick={() => setShowIntelligence(!showIntelligence)}
-          className="w-10 h-10 rounded-full bg-green-primary/10 flex items-center justify-center text-green-primary font-medium flex-shrink-0 hover:bg-green-primary/20 transition-colors"
+          className="w-8 h-8 rounded-full bg-green-primary/10 flex items-center justify-center text-green-primary text-sm font-medium flex-shrink-0 hover:bg-green-primary/20 transition-colors"
         >
           {(selected.name ?? "?")[0].toUpperCase()}
         </button>
         <button onClick={() => setShowIntelligence(!showIntelligence)} className="flex-1 min-w-0 text-left hover:opacity-80 transition-opacity">
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm font-medium text-gray-900">{selected.name ?? "Pending"}</p>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-light text-green-primary font-medium">
-              {selected.workspaceName}
-            </span>
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-semibold text-gray-900">{selected.name ?? "Pending"}</p>
           </div>
           <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-            <span className="text-[10px] text-gray-400 mr-0.5">Delivers via</span>
             <ChannelTags channels={getChannels(selected)} />
             {!selected.notificationsEnabled && (
               <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-red-100 text-red-600">Paused</span>
-            )}
-            {intelligence?.fastest && (
-              <>
-                <span className="text-[10px] text-gray-300 mx-0.5">|</span>
-                <span className="text-[10px] text-green-primary font-medium">
-                  Fastest: {CHANNEL_LABELS[intelligence.fastest.channel]?.label} ~{intelligence.fastest.label}
-                </span>
-              </>
             )}
           </div>
         </button>
@@ -495,34 +483,41 @@ export default function ChatPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 space-y-3">
+      <div className="flex-1 overflow-y-auto px-3 md:px-6 py-3 space-y-1">
         {messages.length === 0 && (
           <p className="text-sm text-gray-400 text-center py-8">
             No messages yet. Send one to {selected.name ?? "this person"} — it'll be delivered via their preferred channel.
           </p>
         )}
-        {messages.map((msg) => {
+        {messages.map((msg, idx) => {
           const isMine = msg.senderId === user.id;
+          const prev = messages[idx - 1];
+          const sameSender = prev && prev.senderId === msg.senderId;
+          const showTime = !prev || new Date(msg.createdAt).getTime() - new Date(prev.createdAt).getTime() > 300000;
           return (
-            <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[85%] md:max-w-[70%] rounded-2xl px-4 py-2.5 ${
-                isMine
-                  ? "bg-green-primary text-white rounded-br-md"
-                  : "bg-gray-100 text-gray-900 rounded-bl-md"
-              }`}>
-                <p className="text-sm whitespace-pre-wrap">{msg.body}</p>
-                <div className={`flex items-center gap-1.5 mt-1 ${isMine ? "justify-end" : ""}`}>
-                  <span className={`text-[10px] ${isMine ? "text-white/60" : "text-gray-400"}`}>
-                    {new Date(msg.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
-                  </span>
+            <div key={msg.id}>
+              {showTime && (
+                <p className="text-[10px] text-gray-400 text-center py-2">
+                  {new Date(msg.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                </p>
+              )}
+              <div className={`flex ${isMine ? "justify-end" : "justify-start"} ${sameSender && !showTime ? "mt-0.5" : "mt-1.5"}`}>
+                <div className={`max-w-[75%] md:max-w-[65%] px-3 py-1.5 ${
+                  isMine
+                    ? `bg-green-primary text-white ${sameSender && !showTime ? "rounded-2xl rounded-br-md" : "rounded-2xl rounded-br-md"}`
+                    : `bg-gray-100 text-gray-900 ${sameSender && !showTime ? "rounded-2xl rounded-bl-md" : "rounded-2xl rounded-bl-md"}`
+                }`}>
+                  <p className="text-[15px] leading-snug whitespace-pre-wrap">{msg.body}</p>
                   {isMine && (
-                    <span className={`text-[10px] ${
-                      msg.deliveryStatus === "delivered" ? "text-white/80" :
-                      msg.deliveryStatus === "queued" ? "text-yellow-200" :
-                      msg.deliveryStatus === "failed" ? "text-red-200" : "text-white/40"
-                    }`}>
-                      {msg.deliveryStatus === "delivered" ? "✓" : msg.deliveryStatus === "queued" ? "⏳" : msg.deliveryStatus === "failed" ? "✗" : "…"}
-                    </span>
+                    <div className="flex justify-end mt-0.5">
+                      <span className={`text-[9px] ${
+                        msg.deliveryStatus === "delivered" ? "text-white/60" :
+                        msg.deliveryStatus === "queued" ? "text-yellow-200/80" :
+                        msg.deliveryStatus === "failed" ? "text-red-200/80" : "text-white/40"
+                      }`}>
+                        {msg.deliveryStatus === "delivered" ? "Delivered" : msg.deliveryStatus === "queued" ? "Queued" : msg.deliveryStatus === "failed" ? "Failed" : "Sending"}
+                      </span>
+                    </div>
                   )}
                 </div>
               </div>
@@ -533,21 +528,23 @@ export default function ChatPage() {
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSend} className="px-4 md:px-6 py-3 border-t border-gray-100 flex gap-2">
+      <form onSubmit={handleSend} className="px-2 md:px-6 py-2 border-t border-gray-100 flex gap-1.5 items-end">
         <input
           type="text"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder={`Message ${selected.name ?? ""}...`}
-          className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30"
+          className="flex-1 px-3 py-2 rounded-full border border-gray-200 text-[15px] focus:outline-none focus:ring-2 focus:ring-green-primary/30 bg-gray-50"
           autoFocus
         />
         <button
           type="submit"
           disabled={sending || !draft.trim()}
-          className="px-4 md:px-5 py-2.5 bg-green-primary text-white rounded-xl text-sm font-medium hover:bg-green-primary/90 transition-colors disabled:opacity-50"
+          className="w-8 h-8 flex items-center justify-center bg-green-primary text-white rounded-full hover:bg-green-primary/90 transition-colors disabled:opacity-30 flex-shrink-0"
         >
-          {sending ? "..." : "Send"}
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" />
+          </svg>
         </button>
       </form>
     </div>
@@ -663,7 +660,7 @@ export default function ChatPage() {
       </div>
 
       {/* Mobile: full-screen panels */}
-      <div className="md:hidden bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col" style={{ height: "calc(100vh - 160px)" }}>
+      <div className="md:hidden bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col" style={{ height: "calc(100dvh - 60px)" }}>
         {mobileView === "list" && !showNewChat && !showBroadcast ? (
           <>
             <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
