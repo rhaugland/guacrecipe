@@ -250,7 +250,7 @@ export default function ChatPage() {
             value={searchQuery}
             onChange={(e) => handleSearch(e.target.value)}
             placeholder="Search contacts & messages..."
-            className="w-full pl-9 pr-3 py-2 rounded-lg bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:bg-white border border-transparent focus:border-gray-200"
+            className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-gray-100 text-[16px] md:text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 focus:bg-white border border-transparent focus:border-gray-200"
           />
           {searchQuery && (
             <button onClick={() => { setSearchQuery(""); setSearchResults([]); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -312,30 +312,30 @@ export default function ChatPage() {
                 <button
                   key={`${wsId}-${c.id}`}
                   onClick={() => handleSelectContact(c)}
-                  className={`w-full px-3 py-2.5 flex items-center gap-2.5 hover:bg-gray-50 transition-colors ${
+                  className={`w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 active:bg-gray-100 transition-colors ${
                     selected?.id === c.id && selected?.workspaceId === c.workspaceId ? "bg-green-light" : ""
                   }`}
                 >
                   <div className="relative flex-shrink-0">
-                    <div className="w-9 h-9 rounded-full bg-green-primary/10 flex items-center justify-center text-green-primary text-sm font-medium">
+                    <div className="w-11 h-11 rounded-full bg-green-primary/10 flex items-center justify-center text-green-primary text-base font-semibold">
                       {(c.name ?? "?")[0].toUpperCase()}
                     </div>
                     {unread > 0 && (
-                      <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-green-primary text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                      <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-green-primary text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                         {unread > 9 ? "9+" : unread}
                       </span>
                     )}
                   </div>
                   <div className="flex-1 text-left min-w-0">
-                    <p className={`text-sm truncate ${unread > 0 ? "font-bold text-gray-900" : "font-medium text-gray-900"}`}>{c.name ?? "Pending"}</p>
+                    <p className={`text-[15px] truncate ${unread > 0 ? "font-bold text-gray-900" : "font-medium text-gray-900"}`}>{c.name ?? "Pending"}</p>
                     <div className="mt-0.5">
                       <ChannelTags channels={getChannels(c)} />
                     </div>
                   </div>
                   {unread > 0 ? (
-                    <span className="w-2 h-2 rounded-full flex-shrink-0 bg-green-primary" />
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-green-primary" />
                   ) : (
-                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${c.notificationsEnabled ? "bg-green-secondary" : "bg-gray-300"}`} />
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${c.notificationsEnabled ? "bg-green-secondary" : "bg-gray-300"}`} />
                   )}
                 </button>
               );
@@ -391,22 +391,21 @@ export default function ChatPage() {
   const chatArea = selected ? (
     <div className="flex-1 flex flex-col min-h-0">
       {/* Chat header */}
-      <div className="px-3 md:px-6 py-2 md:py-3 border-b border-gray-100 flex items-center gap-2 md:gap-3 relative">
-        <button onClick={handleBack} className="md:hidden text-gray-400 hover:text-gray-600 -ml-1">
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+      <div className="px-2 md:px-6 py-2.5 md:py-3 border-b border-gray-100 flex items-center gap-1.5 md:gap-3 relative bg-white/95 backdrop-blur-sm">
+        <button onClick={handleBack} className="md:hidden text-green-primary p-1.5 -ml-0.5 flex items-center gap-0.5">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
+          <span className="text-[15px] font-normal md:hidden">Back</span>
         </button>
         <button
           onClick={() => setShowIntelligence(!showIntelligence)}
-          className="w-8 h-8 rounded-full bg-green-primary/10 flex items-center justify-center text-green-primary text-sm font-medium flex-shrink-0 hover:bg-green-primary/20 transition-colors"
+          className="w-9 h-9 rounded-full bg-green-primary/10 flex items-center justify-center text-green-primary text-sm font-semibold flex-shrink-0 hover:bg-green-primary/20 transition-colors"
         >
           {(selected.name ?? "?")[0].toUpperCase()}
         </button>
         <button onClick={() => setShowIntelligence(!showIntelligence)} className="flex-1 min-w-0 text-left hover:opacity-80 transition-opacity">
-          <div className="flex items-center gap-1.5">
-            <p className="text-sm font-semibold text-gray-900">{selected.name ?? "Pending"}</p>
-          </div>
+          <p className="text-[15px] font-semibold text-gray-900">{selected.name ?? "Pending"}</p>
           <div className="flex items-center gap-1 mt-0.5 flex-wrap">
             <ChannelTags channels={getChannels(selected)} />
             {!selected.notificationsEnabled && (
@@ -483,7 +482,7 @@ export default function ChatPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-3 md:px-6 py-3 space-y-1">
+      <div className="flex-1 overflow-y-auto px-3 md:px-6 py-4 space-y-1 bg-gray-50/50">
         {messages.length === 0 && (
           <p className="text-sm text-gray-400 text-center py-8">
             No messages yet. Send one to {selected.name ?? "this person"} — it'll be delivered via their preferred channel.
@@ -501,13 +500,13 @@ export default function ChatPage() {
                   {new Date(msg.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
                 </p>
               )}
-              <div className={`flex ${isMine ? "justify-end" : "justify-start"} ${sameSender && !showTime ? "mt-0.5" : "mt-1.5"}`}>
-                <div className={`max-w-[75%] md:max-w-[65%] px-3 py-1.5 ${
+              <div className={`flex ${isMine ? "justify-end" : "justify-start"} ${sameSender && !showTime ? "mt-0.5" : "mt-2"}`}>
+                <div className={`max-w-[80%] md:max-w-[65%] px-3.5 py-2 ${
                   isMine
-                    ? `bg-green-primary text-white ${sameSender && !showTime ? "rounded-2xl rounded-br-md" : "rounded-2xl rounded-br-md"}`
-                    : `bg-gray-100 text-gray-900 ${sameSender && !showTime ? "rounded-2xl rounded-bl-md" : "rounded-2xl rounded-bl-md"}`
+                    ? `bg-green-primary text-white ${sameSender && !showTime ? "rounded-2xl rounded-br-md" : "rounded-2xl"}`
+                    : `bg-white text-gray-900 shadow-sm ${sameSender && !showTime ? "rounded-2xl rounded-bl-md" : "rounded-2xl"}`
                 }`}>
-                  <p className="text-[15px] leading-snug whitespace-pre-wrap">{msg.body}</p>
+                  <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{msg.body}</p>
                   {isMine && (
                     <div className="flex justify-end mt-0.5">
                       <span className={`text-[9px] ${
@@ -528,24 +527,25 @@ export default function ChatPage() {
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSend} className="px-2 md:px-6 py-2 border-t border-gray-100 flex gap-1.5 items-end">
-        <input
-          type="text"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder={`Message ${selected.name ?? ""}...`}
-          className="flex-1 px-3 py-2 rounded-full border border-gray-200 text-[15px] focus:outline-none focus:ring-2 focus:ring-green-primary/30 bg-gray-50"
-          autoFocus
-        />
-        <button
-          type="submit"
-          disabled={sending || !draft.trim()}
-          className="w-8 h-8 flex items-center justify-center bg-green-primary text-white rounded-full hover:bg-green-primary/90 transition-colors disabled:opacity-30 flex-shrink-0"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" />
-          </svg>
-        </button>
+      <form onSubmit={handleSend} className="px-3 md:px-6 py-2 md:py-2 border-t border-gray-100 bg-white">
+        <div className="flex gap-2 items-end">
+          <input
+            type="text"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={`Message ${selected.name ?? ""}...`}
+            className="flex-1 px-4 py-2.5 rounded-full border border-gray-200 text-[16px] focus:outline-none focus:ring-2 focus:ring-green-primary/30 bg-gray-50"
+          />
+          <button
+            type="submit"
+            disabled={sending || !draft.trim()}
+            className="w-9 h-9 flex items-center justify-center bg-green-primary text-white rounded-full hover:bg-green-primary/90 transition-colors disabled:opacity-30 flex-shrink-0"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" />
+            </svg>
+          </button>
+        </div>
       </form>
     </div>
   ) : null;
@@ -634,6 +634,9 @@ export default function ChatPage() {
     </div>
   );
 
+  // Mobile chat/broadcast/newChat overlays go full-screen
+  const mobileShowOverlay = mobileView === "chat" || showNewChat || showBroadcast;
+
   return (
     <>
       {/* Desktop: side-by-side */}
@@ -659,33 +662,30 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* Mobile: full-screen panels */}
-      <div className="md:hidden bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col" style={{ height: "calc(100dvh - 60px)" }}>
-        {mobileView === "list" && !showNewChat && !showBroadcast ? (
-          <>
-            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Chats</h2>
-              <div className="flex items-center gap-2">
-                <button onClick={() => { setShowBroadcast(true); setMobileView("chat"); }} className="text-sm text-gray-400 font-medium hover:text-green-primary">
-                  Broadcast
-                </button>
-                <button onClick={() => { setShowNewChat(true); setMobileView("chat"); }} className="text-sm text-green-primary font-medium">
-                  + New
-                </button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto">{contactList}</div>
-          </>
-        ) : showBroadcast ? (
-          broadcastPanel
-        ) : showNewChat ? (
-          newChatPicker
-        ) : chatArea ? (
-          chatArea
-        ) : (
-          emptyState
-        )}
+      {/* Mobile: contact list (always rendered, visible when no overlay) */}
+      <div className={`md:hidden bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col ${mobileShowOverlay ? "hidden" : ""}`} style={{ height: "calc(100dvh - 140px)" }}>
+        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="text-base font-bold text-gray-900">Messages</h2>
+          <div className="flex items-center gap-3">
+            <button onClick={() => { setShowBroadcast(true); setMobileView("chat"); }} className="text-sm text-gray-400 font-medium hover:text-green-primary">
+              Broadcast
+            </button>
+            <button onClick={() => { setShowNewChat(true); setMobileView("chat"); }} className="w-8 h-8 bg-green-primary text-white rounded-full flex items-center justify-center">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto">{contactList}</div>
       </div>
+
+      {/* Mobile: full-screen overlay for conversation / new chat / broadcast */}
+      {mobileShowOverlay && (
+        <div className="md:hidden fixed inset-0 z-50 bg-white flex flex-col" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
+          {showBroadcast ? broadcastPanel : showNewChat ? newChatPicker : chatArea ?? emptyState}
+        </div>
+      )}
     </>
   );
 }
