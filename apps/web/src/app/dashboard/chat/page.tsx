@@ -100,7 +100,7 @@ function IntelligencePopover({ selected, intelligence, onClose, channelsNode, pa
           </button>
         </div>
 
-        {/* NEW: Reaches via + Paused indicator (mobile folds header badges into the popover) */}
+        {/* Reaches via + Paused indicator (mobile folds header badges into the popover) */}
         <div className="mb-3 flex items-center gap-1.5 flex-wrap">
           <span className="text-[10px] uppercase tracking-wide text-gray-400 mr-1">Reaches via</span>
           {channelsNode}
@@ -753,21 +753,23 @@ export default function ChatPage() {
             <div className="flex items-center gap-1 mt-0.5 max-w-[180px]">
               <p className="text-[13px] font-semibold text-gray-900 truncate">{selected.name ?? "Pending"}</p>
               {weatherByUser[selected.id]?.emoji && (
-                <span className="text-xs leading-none">{weatherByUser[selected.id]?.emoji}</span>
+                <span className="text-xs leading-none" aria-label={weatherByUser[selected.id]?.label ?? ""}>{weatherByUser[selected.id]?.emoji}</span>
               )}
             </div>
           </button>
-          {/* Right: info button */}
-          <button
-            onClick={() => setShowIntelligence(!showIntelligence)}
-            className="ml-auto w-9 h-9 rounded-full flex items-center justify-center text-green-primary hover:bg-green-primary/10 transition-colors"
-            aria-label="Contact info"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <circle cx="12" cy="12" r="9" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8h.01M11 12h1v5h1" />
-            </svg>
-          </button>
+          {/* Right: info button (min-w matches back button for symmetric centering) */}
+          <div className="min-w-[64px] flex justify-end ml-auto">
+            <button
+              onClick={() => setShowIntelligence(!showIntelligence)}
+              className="w-9 h-9 rounded-full flex items-center justify-center text-green-primary hover:bg-green-primary/10 transition-colors"
+              aria-label="Contact info"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <circle cx="12" cy="12" r="9" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8h.01M11 12h1v5h1" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {showIntelligence && intelligence && (
