@@ -534,43 +534,40 @@ export default function ChatPage() {
               <span className="text-xs font-semibold text-gray-400 uppercase">{group.name}</span>
             </div>
             {group.contacts.map((c) => {
-              const unread = unreadCounts[`${wsId}:${c.id}`] ?? 0;
+              const isUnread = (unreadCounts[`${wsId}:${c.id}`] ?? 0) > 0;
               return (
                 <button
                   key={`${wsId}-${c.id}`}
                   onClick={() => handleSelectContact(c)}
-                  className={`w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 active:bg-gray-100 transition-colors ${
+                  className={`w-full hover:bg-gray-50 active:bg-gray-100 transition-colors ${
                     selected?.id === c.id && selected?.workspaceId === c.workspaceId ? "bg-green-light" : ""
                   }`}
                 >
-                  <div className="relative flex-shrink-0">
-                    <div className="w-11 h-11 rounded-full bg-green-primary/10 flex items-center justify-center text-green-primary text-base font-semibold">
+                  <div className="pl-4 pr-4 py-3 flex items-center gap-3">
+                    {/* Unread dot: takes fixed 12px lane so names align across read/unread rows */}
+                    <div className="w-3 flex-shrink-0 flex justify-center">
+                      {isUnread && <span className="w-2 h-2 rounded-full bg-green-primary" />}
+                    </div>
+                    <div className="w-11 h-11 rounded-full bg-green-primary/10 flex items-center justify-center text-green-primary text-base font-semibold flex-shrink-0">
                       {(c.name ?? "?")[0].toUpperCase()}
                     </div>
-                    {unread > 0 && (
-                      <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-green-primary text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                        {unread > 9 ? "9+" : unread}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex-1 text-left min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <p className={`text-[15px] truncate ${unread > 0 ? "font-bold text-gray-900" : "font-medium text-gray-900"}`}>{c.name ?? "Pending"}</p>
-                      {weatherByUser[c.id]?.emoji && (
-                        <span className="text-sm leading-none shrink-0" aria-label={weatherByUser[c.id]?.label ?? ""}>
-                          {weatherByUser[c.id]?.emoji}
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-0.5">
-                      <ChannelTags channels={getChannels(c)} />
+                    <div className="flex-1 min-w-0 text-left border-b border-gray-100 pb-3 -mb-3">
+                      <div className="flex items-center gap-1.5">
+                        <p className={`text-[15px] truncate ${isUnread ? "font-semibold text-gray-900" : "font-semibold text-gray-900"}`}>
+                          {c.name ?? c.email ?? "Unknown"}
+                        </p>
+                        {weatherByUser[c.id]?.emoji && (
+                          <span className="text-sm leading-none" aria-label={weatherByUser[c.id]?.label ?? ""}>
+                            {weatherByUser[c.id]?.emoji}
+                          </span>
+                        )}
+                        <span className="ml-auto text-xs text-gray-400 flex-shrink-0">{formatRelativeShort(undefined)}</span>
+                      </div>
+                      <p className={`mt-0.5 text-sm truncate ${isUnread ? "text-gray-800" : "text-gray-500"}`}>
+                        {"—"}
+                      </p>
                     </div>
                   </div>
-                  {unread > 0 ? (
-                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-green-primary" />
-                  ) : (
-                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${c.notificationsEnabled ? "bg-green-secondary" : "bg-gray-300"}`} />
-                  )}
                 </button>
               );
             })}
@@ -986,6 +983,8 @@ export default function ChatPage() {
     return `${d}d ago`;
   };
 
+
+
   const scheduledPanel = (
     <div className="flex-1 flex flex-col min-h-0">
       {/* Header */}
@@ -1102,18 +1101,22 @@ export default function ChatPage() {
 
       {/* Mobile: contact list (always rendered, visible when no overlay) */}
       <div className={`md:hidden bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col relative ${mobileShowOverlay ? "hidden" : ""}`} style={{ height: "calc(100dvh - 140px)" }}>
-        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-base font-bold text-gray-900">Messages</h2>
+        <div className="px-4 pt-4 pb-3 border-b border-gray-100 flex items-end justify-between">
+          <h2 className="text-[28px] leading-none font-bold text-gray-900">Messages</h2>
           <div className="flex items-center gap-2">
             {scheduled.length > 0 && (
               <button
                 onClick={() => { setShowScheduledPanel(true); setMobileView("chat"); }}
-                className="text-sm text-amber-700 font-medium hover:text-amber-800 transition-colors"
+                className="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
               >
-                Scheduled ({scheduled.length})
+                ⏳ {scheduled.length} scheduled
               </button>
             )}
-            <button onClick={() => { setShowNewChat(true); setMobileView("chat"); }} className="w-8 h-8 bg-green-primary text-white rounded-full flex items-center justify-center">
+            <button
+              onClick={() => { setShowNewChat(true); setMobileView("chat"); }}
+              className="w-8 h-8 bg-green-primary text-white rounded-full flex items-center justify-center active:scale-95 transition-transform"
+              aria-label="New chat"
+            >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
               </svg>
@@ -1149,4 +1152,20 @@ export default function ChatPage() {
       )}
     </>
   );
+}
+
+function formatRelativeShort(d: Date | string | null | undefined): string {
+  if (!d) return "";
+  const date = typeof d === "string" ? new Date(d) : d;
+  const diffMs = Date.now() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "now";
+  if (diffMin < 60) return `${diffMin}m`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `${diffH}h`;
+  const diffD = Math.floor(diffH / 24);
+  if (diffD < 7) {
+    return date.toLocaleDateString([], { weekday: "short" });
+  }
+  return date.toLocaleDateString([], { month: "numeric", day: "numeric" });
 }
