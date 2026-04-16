@@ -7,6 +7,21 @@ import type { WorkspaceMember, ChatMessage, ChannelIntelligence, SearchResult } 
 
 type Contact = WorkspaceMember & { workspaceId: string; workspaceName: string };
 
+type WeatherInfo = {
+  count: number | null;
+  code: string | null;
+  emoji: string | null;
+  label: string | null;
+  connected: boolean;
+};
+
+// Severity gating: "none" => normal, "warn" => soft banner, "block" => stronger banner + confirm modal
+function gatingFor(code: string | null): "none" | "warn" | "block" {
+  if (code === "rainy") return "warn";
+  if (code === "thunderstorm") return "block";
+  return "none";
+}
+
 const CHANNEL_LABELS: Record<string, { label: string; color: string }> = {
   email: { label: "Email", color: "bg-blue-100 text-blue-700" },
   sms: { label: "SMS", color: "bg-purple-100 text-purple-700" },
@@ -63,6 +78,9 @@ export default function ChatPage() {
   const [intelligence, setIntelligence] = useState<ChannelIntelligence | null>(null);
   const [showIntelligence, setShowIntelligence] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [weatherByUser, setWeatherByUser] = useState<Record<string, WeatherInfo>>({});
+  const [stormConfirmed, setStormConfirmed] = useState<Set<string>>(new Set());
+  const [showStormConfirm, setShowStormConfirm] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -102,15 +120,33 @@ export default function ChatPage() {
     } catch {}
   }, []);
 
+  const loadTeamWeather = useCallback(async () => {
+    try {
+      const { teammates } = await api.weather.team();
+      const map: Record<string, WeatherInfo> = {};
+      for (const t of teammates) {
+        map[t.userId] = {
+          count: t.today?.count ?? null,
+          code: t.today?.weather.code ?? null,
+          emoji: t.today?.weather.emoji ?? null,
+          label: t.today?.weather.label ?? null,
+          connected: t.connected,
+        };
+      }
+      setWeatherByUser(map);
+    } catch {}
+  }, []);
+
   useEffect(() => {
     loadContacts();
     loadUnread();
+    loadTeamWeather();
   }, [user, workspaces]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const interval = setInterval(() => { loadContacts(); loadUnread(); }, 30000);
+    const interval = setInterval(() => { loadContacts(); loadUnread(); loadTeamWeather(); }, 30000);
     return () => clearInterval(interval);
-  }, [loadContacts, loadUnread]);
+  }, [loadContacts, loadUnread, loadTeamWeather]);
 
   const loadConversation = useCallback(async (contact: Contact) => {
     const data = await api.messages.conversation(contact.workspaceId, contact.id);
@@ -131,8 +167,7 @@ export default function ChatPage() {
     return () => clearInterval(interval);
   }, [selected, loadConversation]);
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const sendMessage = async () => {
     if (!draft.trim() || !selected || sending) return;
     setSending(true);
     try {
@@ -146,6 +181,26 @@ export default function ChatPage() {
     } finally {
       setSending(false);
     }
+  };
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!draft.trim() || !selected || sending) return;
+    const w = weatherByUser[selected.id];
+    const gating = gatingFor(w?.code ?? null);
+    // Storm: confirm modal once per session per recipient
+    if (gating === "block" && !stormConfirmed.has(selected.id)) {
+      setShowStormConfirm(true);
+      return;
+    }
+    await sendMessage();
+  };
+
+  const confirmStormSend = async () => {
+    if (!selected) return;
+    setStormConfirmed((prev) => new Set(prev).add(selected.id));
+    setShowStormConfirm(false);
+    await sendMessage();
   };
 
   const handleSelectContact = (contact: Contact) => {
@@ -327,7 +382,14 @@ export default function ChatPage() {
                     )}
                   </div>
                   <div className="flex-1 text-left min-w-0">
-                    <p className={`text-[15px] truncate ${unread > 0 ? "font-bold text-gray-900" : "font-medium text-gray-900"}`}>{c.name ?? "Pending"}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className={`text-[15px] truncate ${unread > 0 ? "font-bold text-gray-900" : "font-medium text-gray-900"}`}>{c.name ?? "Pending"}</p>
+                      {weatherByUser[c.id]?.emoji && (
+                        <span className="text-sm leading-none shrink-0" aria-label={weatherByUser[c.id]?.label ?? ""}>
+                          {weatherByUser[c.id]?.emoji}
+                        </span>
+                      )}
+                    </div>
                     <div className="mt-0.5">
                       <ChannelTags channels={getChannels(c)} />
                     </div>
@@ -405,7 +467,14 @@ export default function ChatPage() {
           {(selected.name ?? "?")[0].toUpperCase()}
         </button>
         <button onClick={() => setShowIntelligence(!showIntelligence)} className="flex-1 min-w-0 text-left hover:opacity-80 transition-opacity">
-          <p className="text-[15px] font-semibold text-gray-900">{selected.name ?? "Pending"}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-[15px] font-semibold text-gray-900 truncate">{selected.name ?? "Pending"}</p>
+            {weatherByUser[selected.id]?.emoji && (
+              <span className="text-base leading-none" aria-label={weatherByUser[selected.id]?.label ?? ""}>
+                {weatherByUser[selected.id]?.emoji}
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-1 mt-0.5 flex-wrap">
             <ChannelTags channels={getChannels(selected)} />
             {!selected.notificationsEnabled && (
@@ -526,6 +595,34 @@ export default function ChatPage() {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Weather gating banner */}
+      {(() => {
+        const w = weatherByUser[selected.id];
+        const gating = gatingFor(w?.code ?? null);
+        if (gating === "none") return null;
+        const name = selected.name ?? "they";
+        const count = w?.count ?? 0;
+        if (gating === "warn") {
+          return (
+            <div className="mx-3 md:mx-6 mb-2 mt-2 px-3 py-2 rounded-xl bg-sky-light/60 border border-sky-primary/20 flex items-center gap-2">
+              <span className="text-base">🌧️</span>
+              <p className="text-xs text-green-primary flex-1">
+                Heavy day for {name} — {count} meeting{count === 1 ? "" : "s"}. Keep it brief.
+              </p>
+            </div>
+          );
+        }
+        // block (storm)
+        return (
+          <div className="mx-3 md:mx-6 mb-2 mt-2 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-2">
+            <span className="text-base">⛈️</span>
+            <p className="text-xs text-amber-800 flex-1">
+              {name} is slammed — {count} meeting{count === 1 ? "" : "s"} today. Only message if urgent.
+            </p>
+          </div>
+        );
+      })()}
+
       {/* Input */}
       <form onSubmit={handleSend} className="px-3 md:px-6 py-2 md:py-2 border-t border-gray-100 bg-white">
         <div className="flex gap-2 items-end">
@@ -547,6 +644,39 @@ export default function ChatPage() {
           </button>
         </div>
       </form>
+
+      {/* Storm confirm modal */}
+      {showStormConfirm && (
+        <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4" onClick={() => setShowStormConfirm(false)}>
+          <div className="bg-white rounded-2xl p-5 max-w-sm w-full shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="text-center mb-3">
+              <div className="text-5xl mb-2 leading-none">⛈️</div>
+              <h3 className="text-base font-semibold text-gray-900 mb-1">Send anyway?</h3>
+              <p className="text-sm text-gray-500">
+                {selected.name ?? "This person"} is slammed today
+                {weatherByUser[selected.id]?.count != null
+                  ? ` — ${weatherByUser[selected.id]?.count} meeting${weatherByUser[selected.id]?.count === 1 ? "" : "s"}`
+                  : ""}.
+                If it can wait until tomorrow, it&apos;ll be appreciated.
+              </p>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => setShowStormConfirm(false)}
+                className="flex-1 py-2.5 rounded-full text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition"
+              >
+                Wait
+              </button>
+              <button
+                onClick={confirmStormSend}
+                className="flex-1 py-2.5 rounded-full text-sm font-medium text-white bg-amber-500 hover:bg-amber-600 transition"
+              >
+                Send anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   ) : null;
 
