@@ -4,6 +4,7 @@ import {
   varchar,
   text,
   boolean,
+  integer,
   timestamp,
   time,
   date,
@@ -172,6 +173,17 @@ export const chatReadReceipts = pgTable("chat_read_receipts", {
   lastReadAt: timestamp("last_read_at").defaultNow().notNull(),
 }, (table) => [
   uniqueIndex("chat_read_unique").on(table.userId, table.workspaceId, table.contactId),
+]);
+
+export const dailyMeetingCounts = pgTable("daily_meeting_counts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  date: date("date").notNull(),
+  count: integer("count").default(0).notNull(),
+  source: varchar("source", { length: 32 }).default("manual").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("daily_meeting_user_date_unique").on(table.userId, table.date),
 ]);
 
 export const pushSubscriptions = pgTable("push_subscriptions", {

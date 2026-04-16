@@ -8,6 +8,13 @@
       "when": 1775679500714,
       "tag": "0000_sharp_firelord",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1776357409131,
+      "tag": "0001_rich_warhawk",
+      "breakpoints": true
     }
   ]
 }

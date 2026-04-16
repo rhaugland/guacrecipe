@@ -76,6 +76,22 @@ export const api = {
       request("/api/push/unsubscribe", { method: "POST", body: JSON.stringify({ endpoint }) }),
     status: () => request<{ subscribed: boolean }>("/api/push/status"),
   },
+  weather: {
+    get: () => request<{
+      date: string;
+      count: number;
+      source: string;
+      weather: { code: string; emoji: string; label: string };
+      calendarConnected: boolean;
+    }>("/api/weather"),
+    setCount: (count: number) =>
+      request<{
+        date: string;
+        count: number;
+        source: string;
+        weather: { code: string; emoji: string; label: string };
+      }>("/api/weather/count", { method: "PUT", body: JSON.stringify({ count }) }),
+  },
   messages: {
     send: (data: { workspaceId: string; recipientId: string; body: string }) =>
       request("/api/messages/send", { method: "POST", body: JSON.stringify(data) }),
