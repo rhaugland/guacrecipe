@@ -18,14 +18,25 @@ const OVERRIDE_PRESETS: Record<string, { code: string; label: string; emoji: str
 
 type ResolvedWeather = { weather: { code: string; emoji: string; label: string }; override: boolean };
 
+// Postgres "undefined_table" error code. Returned when the weather_overrides
+// migration hasn't been applied yet — we degrade gracefully to computed weather.
+function isMissingTable(err: unknown): boolean {
+  return typeof err === "object" && err !== null && (err as { code?: string }).code === "42P01";
+}
+
 async function resolveWeather(userId: string, date: string, count: number): Promise<ResolvedWeather> {
-  const [override] = await db.select().from(weatherOverrides)
-    .where(and(eq(weatherOverrides.userId, userId), eq(weatherOverrides.date, date)));
-  if (override) {
-    return {
-      weather: { code: override.code, emoji: override.emoji, label: override.label },
-      override: true,
-    };
+  try {
+    const [override] = await db.select().from(weatherOverrides)
+      .where(and(eq(weatherOverrides.userId, userId), eq(weatherOverrides.date, date)));
+    if (override) {
+      return {
+        weather: { code: override.code, emoji: override.emoji, label: override.label },
+        override: true,
+      };
+    }
+  } catch (err) {
+    if (!isMissingTable(err)) throw err;
+    console.warn("[weather] weather_overrides table missing — run migration 0003");
   }
   return { weather: weatherFromCount(count), override: false };
 }
@@ -185,12 +196,18 @@ weather.get("/week", requireAuth, async (c) => {
     ));
   const byDate = new Map(rows.map((r) => [r.date, r]));
 
-  const overrideRows = await db.select()
-    .from(weatherOverrides)
-    .where(and(
-      eq(weatherOverrides.userId, user.id),
-      inArray(weatherOverrides.date, days),
-    ));
+  let overrideRows: typeof weatherOverrides.$inferSelect[] = [];
+  try {
+    overrideRows = await db.select()
+      .from(weatherOverrides)
+      .where(and(
+        eq(weatherOverrides.userId, user.id),
+        inArray(weatherOverrides.date, days),
+      ));
+  } catch (err) {
+    if (!isMissingTable(err)) throw err;
+    console.warn("[weather] weather_overrides table missing — run migration 0003");
+  }
   const overrideByDate = new Map(overrideRows.map((o) => [o.date, o]));
 
   const week = days.map((date) => {
@@ -270,12 +287,18 @@ weather.get("/team", requireAuth, async (c) => {
   }
 
   // Single query: all overrides for these teammates this work week
-  const allOverrides = await db.select()
-    .from(weatherOverrides)
-    .where(and(
-      inArray(weatherOverrides.userId, teammateIds),
-      inArray(weatherOverrides.date, days),
-    ));
+  let allOverrides: typeof weatherOverrides.$inferSelect[] = [];
+  try {
+    allOverrides = await db.select()
+      .from(weatherOverrides)
+      .where(and(
+        inArray(weatherOverrides.userId, teammateIds),
+        inArray(weatherOverrides.date, days),
+      ));
+  } catch (err) {
+    if (!isMissingTable(err)) throw err;
+    console.warn("[weather] weather_overrides table missing — run migration 0003");
+  }
   const overridesByUser = new Map<string, Map<string, typeof allOverrides[number]>>();
   for (const row of allOverrides) {
     if (!overridesByUser.has(row.userId)) overridesByUser.set(row.userId, new Map());
@@ -363,18 +386,25 @@ weather.put("/override", requireAuth, async (c) => {
   const tz = user.workingHoursTimezone ?? "America/New_York";
   const today = todayInTimezone(tz);
 
-  const [existing] = await db.select().from(weatherOverrides)
-    .where(and(eq(weatherOverrides.userId, user.id), eq(weatherOverrides.date, today)));
+  try {
+    const [existing] = await db.select().from(weatherOverrides)
+      .where(and(eq(weatherOverrides.userId, user.id), eq(weatherOverrides.date, today)));
 
-  if (existing) {
-    await db.update(weatherOverrides)
-      .set({ code: preset.code, label: preset.label, emoji: preset.emoji })
-      .where(eq(weatherOverrides.id, existing.id));
-  } else {
-    await db.insert(weatherOverrides).values({
-      userId: user.id, date: today,
-      code: preset.code, label: preset.label, emoji: preset.emoji,
-    });
+    if (existing) {
+      await db.update(weatherOverrides)
+        .set({ code: preset.code, label: preset.label, emoji: preset.emoji })
+        .where(eq(weatherOverrides.id, existing.id));
+    } else {
+      await db.insert(weatherOverrides).values({
+        userId: user.id, date: today,
+        code: preset.code, label: preset.label, emoji: preset.emoji,
+      });
+    }
+  } catch (err) {
+    if (isMissingTable(err)) {
+      return c.json({ error: "Manual overrides not yet available — database migration pending." }, 503);
+    }
+    throw err;
   }
 
   flushScheduledForRecipient(user.id).catch((err) => console.error("[scheduled] flush failed", err));
@@ -385,8 +415,13 @@ weather.delete("/override", requireAuth, async (c) => {
   const user = c.get("user");
   const tz = user.workingHoursTimezone ?? "America/New_York";
   const today = todayInTimezone(tz);
-  await db.delete(weatherOverrides)
-    .where(and(eq(weatherOverrides.userId, user.id), eq(weatherOverrides.date, today)));
+  try {
+    await db.delete(weatherOverrides)
+      .where(and(eq(weatherOverrides.userId, user.id), eq(weatherOverrides.date, today)));
+  } catch (err) {
+    if (isMissingTable(err)) return c.json({ ok: true });
+    throw err;
+  }
   flushScheduledForRecipient(user.id).catch((err) => console.error("[scheduled] flush failed", err));
   return c.json({ ok: true });
 });

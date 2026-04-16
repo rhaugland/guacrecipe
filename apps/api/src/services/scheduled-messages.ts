@@ -4,6 +4,12 @@ import { dispatchMessage } from "../routes/messages";
 
 export const SUNNY_CODES = new Set(["sunny", "partly_cloudy"]);
 
+// Postgres "undefined_table" error code. Returned when the new MVP migrations
+// haven't been applied yet — we degrade gracefully instead of 500-ing.
+function isMissingTable(err: unknown): boolean {
+  return typeof err === "object" && err !== null && (err as { code?: string }).code === "42P01";
+}
+
 function todayInTimezone(timezone: string): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: timezone,
@@ -30,9 +36,14 @@ export async function effectiveCodeForUser(userId: string): Promise<string> {
   const tz = u?.tz ?? "America/New_York";
   const date = todayInTimezone(tz);
 
-  const [override] = await db.select().from(weatherOverrides)
-    .where(and(eq(weatherOverrides.userId, userId), eq(weatherOverrides.date, date)));
-  if (override) return override.code;
+  try {
+    const [override] = await db.select().from(weatherOverrides)
+      .where(and(eq(weatherOverrides.userId, userId), eq(weatherOverrides.date, date)));
+    if (override) return override.code;
+  } catch (err) {
+    if (!isMissingTable(err)) throw err;
+    // weather_overrides migration not applied — fall through to computed weather
+  }
 
   const [count] = await db.select().from(dailyMeetingCounts)
     .where(and(eq(dailyMeetingCounts.userId, userId), eq(dailyMeetingCounts.date, date)));
@@ -49,11 +60,17 @@ export async function flushScheduledForRecipient(recipientId: string): Promise<n
   const code = await effectiveCodeForUser(recipientId);
   if (!SUNNY_CODES.has(code)) return 0;
 
-  const pending = await db.select().from(scheduledMessages)
-    .where(and(
-      eq(scheduledMessages.recipientId, recipientId),
-      eq(scheduledMessages.status, "pending"),
-    ));
+  let pending: typeof scheduledMessages.$inferSelect[];
+  try {
+    pending = await db.select().from(scheduledMessages)
+      .where(and(
+        eq(scheduledMessages.recipientId, recipientId),
+        eq(scheduledMessages.status, "pending"),
+      ));
+  } catch (err) {
+    if (isMissingTable(err)) return 0;
+    throw err;
+  }
 
   let dispatched = 0;
   for (const sm of pending) {

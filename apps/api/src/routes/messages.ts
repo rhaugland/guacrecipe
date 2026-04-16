@@ -7,6 +7,13 @@ import { flushScheduledForRecipient } from "../services/scheduled-messages";
 
 const messagesRouter = new Hono();
 
+// Postgres "undefined_table" error code. Returned when the scheduled_messages
+// migration hasn't been applied yet — we degrade gracefully for read paths and
+// surface a clear 503 for write paths.
+function isMissingTable(err: unknown): boolean {
+  return typeof err === "object" && err !== null && (err as { code?: string }).code === "42P01";
+}
+
 /**
  * Dispatch a message from sender to recipient inside a workspace.
  *
@@ -426,13 +433,22 @@ messagesRouter.post("/schedule", requireAuth, async (c) => {
   );
   if (!recipientMembership) return c.json({ error: "Recipient not in workspace" }, 400);
 
-  const [inserted] = await db.insert(scheduledMessages).values({
-    workspaceId,
-    senderId: userId,
-    recipientId,
-    body: body.trim(),
-    condition: cond,
-  }).returning();
+  let inserted: typeof scheduledMessages.$inferSelect;
+  try {
+    const [row] = await db.insert(scheduledMessages).values({
+      workspaceId,
+      senderId: userId,
+      recipientId,
+      body: body.trim(),
+      condition: cond,
+    }).returning();
+    inserted = row;
+  } catch (err) {
+    if (isMissingTable(err)) {
+      return c.json({ error: "Scheduled messages not yet available — database migration pending." }, 503);
+    }
+    throw err;
+  }
 
   // Look up recipient name/email for response shape
   const [recipient] = await db.select({ name: users.name, email: users.email })
@@ -459,25 +475,30 @@ messagesRouter.post("/schedule", requireAuth, async (c) => {
 messagesRouter.get("/scheduled", requireAuth, async (c) => {
   const userId = c.get("userId");
 
-  const rows = await db.select({
-    id: scheduledMessages.id,
-    workspaceId: scheduledMessages.workspaceId,
-    recipientId: scheduledMessages.recipientId,
-    body: scheduledMessages.body,
-    condition: scheduledMessages.condition,
-    createdAt: scheduledMessages.createdAt,
-    recipientName: users.name,
-    recipientEmail: users.email,
-  })
-    .from(scheduledMessages)
-    .innerJoin(users, eq(scheduledMessages.recipientId, users.id))
-    .where(and(
-      eq(scheduledMessages.senderId, userId),
-      eq(scheduledMessages.status, "pending"),
-    ))
-    .orderBy(desc(scheduledMessages.createdAt));
+  try {
+    const rows = await db.select({
+      id: scheduledMessages.id,
+      workspaceId: scheduledMessages.workspaceId,
+      recipientId: scheduledMessages.recipientId,
+      body: scheduledMessages.body,
+      condition: scheduledMessages.condition,
+      createdAt: scheduledMessages.createdAt,
+      recipientName: users.name,
+      recipientEmail: users.email,
+    })
+      .from(scheduledMessages)
+      .innerJoin(users, eq(scheduledMessages.recipientId, users.id))
+      .where(and(
+        eq(scheduledMessages.senderId, userId),
+        eq(scheduledMessages.status, "pending"),
+      ))
+      .orderBy(desc(scheduledMessages.createdAt));
 
-  return c.json({ scheduled: rows });
+    return c.json({ scheduled: rows });
+  } catch (err) {
+    if (isMissingTable(err)) return c.json({ scheduled: [] });
+    throw err;
+  }
 });
 
 // Cancel a pending scheduled message (sender-only).
@@ -485,16 +506,21 @@ messagesRouter.delete("/scheduled/:id", requireAuth, async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
 
-  const [row] = await db.select().from(scheduledMessages).where(eq(scheduledMessages.id, id));
-  if (!row) return c.json({ error: "Not found" }, 404);
-  if (row.senderId !== userId) return c.json({ error: "Forbidden" }, 403);
-  if (row.status !== "pending") return c.json({ error: "Already " + row.status }, 400);
+  try {
+    const [row] = await db.select().from(scheduledMessages).where(eq(scheduledMessages.id, id));
+    if (!row) return c.json({ error: "Not found" }, 404);
+    if (row.senderId !== userId) return c.json({ error: "Forbidden" }, 403);
+    if (row.status !== "pending") return c.json({ error: "Already " + row.status }, 400);
 
-  await db.update(scheduledMessages)
-    .set({ status: "canceled" })
-    .where(eq(scheduledMessages.id, id));
+    await db.update(scheduledMessages)
+      .set({ status: "canceled" })
+      .where(eq(scheduledMessages.id, id));
 
-  return c.json({ ok: true });
+    return c.json({ ok: true });
+  } catch (err) {
+    if (isMissingTable(err)) return c.json({ error: "Not found" }, 404);
+    throw err;
+  }
 });
 
 export default messagesRouter;
