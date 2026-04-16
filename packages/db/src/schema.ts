@@ -20,6 +20,7 @@ export const deliveryStatusEnum = pgEnum("delivery_status", ["delivered", "queue
 export const directionEnum = pgEnum("direction", ["inbound", "outbound"]);
 export const disambiguationStepEnum = pgEnum("disambiguation_step", ["workspace", "recipient"]);
 export const disambiguationStatusEnum = pgEnum("disambiguation_status", ["pending", "resolved", "expired"]);
+export const scheduledMessageStatusEnum = pgEnum("scheduled_message_status", ["pending", "sent", "canceled"]);
 
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -226,3 +227,15 @@ export const weatherOverrides = pgTable("weather_overrides", {
 }, (table) => [
   uniqueIndex("weather_override_user_date_unique").on(table.userId, table.date),
 ]);
+
+export const scheduledMessages = pgTable("scheduled_messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id").references(() => workspaces.id).notNull(),
+  senderId: uuid("sender_id").references(() => users.id).notNull(),
+  recipientId: uuid("recipient_id").references(() => users.id).notNull(),
+  body: text("body").notNull(),
+  condition: varchar("condition", { length: 32 }).notNull(),
+  status: scheduledMessageStatusEnum("status").default("pending").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  sentAt: timestamp("sent_at"),
+});

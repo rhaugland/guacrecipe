@@ -82,6 +82,17 @@ export type SearchResult = {
   createdAt: string;
 };
 
+export type ScheduledMessage = {
+  id: string;
+  workspaceId: string;
+  recipientId: string;
+  recipientName: string | null;
+  recipientEmail: string | null;
+  body: string;
+  condition: "recipient_sunny";
+  createdAt: string;
+};
+
 export type Preferences = {
   preferredChannel: Channel;
   notificationChannels: string[];

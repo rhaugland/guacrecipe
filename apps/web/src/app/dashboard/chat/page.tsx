@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "../../../hooks/useAuth";
 import { useWorkspaces } from "../../../hooks/useWorkspaces";
 import { api } from "../../../lib/api-client";
-import type { WorkspaceMember, ChatMessage, ChannelIntelligence, SearchResult } from "../../../lib/types";
+import type { WorkspaceMember, ChatMessage, ChannelIntelligence, SearchResult, ScheduledMessage } from "../../../lib/types";
 
 type Contact = WorkspaceMember & { workspaceId: string; workspaceName: string };
 
@@ -85,6 +85,8 @@ export default function ChatPage() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [scheduled, setScheduled] = useState<ScheduledMessage[]>([]);
+  const [showScheduledPanel, setShowScheduledPanel] = useState(false);
   // On mobile: "list" shows sidebar, "chat" shows conversation
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -120,6 +122,13 @@ export default function ChatPage() {
     } catch {}
   }, []);
 
+  const loadScheduled = useCallback(async () => {
+    try {
+      const { scheduled } = await api.messages.listScheduled();
+      setScheduled(scheduled);
+    } catch {}
+  }, []);
+
   const loadTeamWeather = useCallback(async () => {
     try {
       const { teammates } = await api.weather.team();
@@ -141,12 +150,13 @@ export default function ChatPage() {
     loadContacts();
     loadUnread();
     loadTeamWeather();
+    loadScheduled();
   }, [user, workspaces]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const interval = setInterval(() => { loadContacts(); loadUnread(); loadTeamWeather(); }, 30000);
+    const interval = setInterval(() => { loadContacts(); loadUnread(); loadTeamWeather(); loadScheduled(); }, 30000);
     return () => clearInterval(interval);
-  }, [loadContacts, loadUnread, loadTeamWeather]);
+  }, [loadContacts, loadUnread, loadTeamWeather, loadScheduled]);
 
   const loadConversation = useCallback(async (contact: Contact) => {
     const data = await api.messages.conversation(contact.workspaceId, contact.id);
@@ -178,8 +188,52 @@ export default function ChatPage() {
       });
       setDraft("");
       await loadConversation(selected);
+      loadScheduled();
     } finally {
       setSending(false);
+    }
+  };
+
+  const scheduleForSunny = async () => {
+    if (!draft.trim() || !selected) return;
+    try {
+      await api.messages.schedule({
+        workspaceId: selected.workspaceId,
+        recipientId: selected.id,
+        body: draft.trim(),
+        condition: "recipient_sunny",
+      });
+      setDraft("");
+      setShowStormConfirm(false);
+      await loadScheduled();
+    } catch (err) {
+      console.error("[chat] schedule failed", err);
+    }
+  };
+
+  const cancelScheduled = async (id: string) => {
+    try {
+      await api.messages.cancelScheduled(id);
+      await loadScheduled();
+    } catch (err) {
+      console.error("[chat] cancel scheduled failed", err);
+    }
+  };
+
+  const sendScheduledNow = async (sm: ScheduledMessage) => {
+    try {
+      await api.messages.send({
+        workspaceId: sm.workspaceId,
+        recipientId: sm.recipientId,
+        body: sm.body,
+      });
+      await api.messages.cancelScheduled(sm.id);
+      await loadScheduled();
+      if (selected && sm.recipientId === selected.id && sm.workspaceId === selected.workspaceId) {
+        await loadConversation(selected);
+      }
+    } catch (err) {
+      console.error("[chat] send scheduled now failed", err);
     }
   };
 
@@ -207,6 +261,7 @@ export default function ChatPage() {
     setSelected(contact);
     setShowNewChat(false);
     setShowBroadcast(false);
+    setShowScheduledPanel(false);
     setMobileView("chat");
     setIntelligence(null);
     setShowIntelligence(false);
@@ -265,6 +320,7 @@ export default function ChatPage() {
     setMobileView("list");
     setShowNewChat(false);
     setShowBroadcast(false);
+    setShowScheduledPanel(false);
   };
 
   if (!user) return null;
@@ -592,6 +648,26 @@ export default function ChatPage() {
             </div>
           );
         })}
+        {/* Inline ghost rows: pending scheduled sends to this recipient */}
+        {scheduled
+          .filter((sm) => selected && sm.recipientId === selected.id && sm.workspaceId === selected.workspaceId)
+          .map((sm) => (
+            <div key={`ghost-${sm.id}`} className="mt-2">
+              <div className="flex justify-end">
+                <div className="max-w-[80%] md:max-w-[65%] px-3.5 py-2 bg-green-primary/50 text-white rounded-2xl">
+                  <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{sm.body}</p>
+                </div>
+              </div>
+              <div className="flex justify-end mt-1">
+                <p className="text-[10px] text-gray-500">
+                  Queued — sends when ☀️ ·{" "}
+                  <button onClick={() => cancelScheduled(sm.id)} className="text-amber-700 hover:text-amber-800 underline">
+                    Cancel
+                  </button>
+                </p>
+              </div>
+            </div>
+          ))}
         <div ref={messagesEndRef} />
       </div>
 
@@ -666,6 +742,12 @@ export default function ChatPage() {
                 className="flex-1 py-2.5 rounded-full text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition"
               >
                 Wait
+              </button>
+              <button
+                onClick={scheduleForSunny}
+                className="flex-1 py-2.5 rounded-full text-sm font-medium text-green-primary bg-sky-light hover:bg-sky-light/80 transition"
+              >
+                Send when ☀️
               </button>
               <button
                 onClick={confirmStormSend}
@@ -769,6 +851,86 @@ export default function ChatPage() {
     </div>
   );
 
+  // Group scheduled by recipient for the panel
+  const scheduledByRecipient = scheduled.reduce<Record<string, { name: string; items: ScheduledMessage[] }>>((acc, sm) => {
+    const key = sm.recipientId;
+    if (!acc[key]) acc[key] = { name: sm.recipientName ?? sm.recipientEmail ?? "Unknown", items: [] };
+    acc[key].items.push(sm);
+    return acc;
+  }, {});
+
+  const formatRelative = (iso: string): string => {
+    const ms = Date.now() - new Date(iso).getTime();
+    const m = Math.floor(ms / 60000);
+    if (m < 1) return "just now";
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    const d = Math.floor(h / 24);
+    return `${d}d ago`;
+  };
+
+  const scheduledPanel = (
+    <div className="flex-1 flex flex-col min-h-0">
+      {/* Header */}
+      <div className="px-2 md:px-6 py-2.5 md:py-3 border-b border-gray-100 flex items-center gap-1.5 md:gap-3 bg-white/95 backdrop-blur-sm">
+        <button onClick={handleBack} className="md:hidden text-green-primary p-1.5 -ml-0.5 flex items-center gap-0.5">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+          <span className="text-[15px] font-normal md:hidden">Back</span>
+        </button>
+        <h3 className="flex-1 text-[15px] font-semibold text-gray-900">Scheduled</h3>
+        <button onClick={() => { setShowScheduledPanel(false); setMobileView("list"); }} className="text-sm text-gray-400 hover:text-gray-600">Close</button>
+      </div>
+
+      {/* Body */}
+      <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4">
+        {scheduled.length === 0 ? (
+          <div className="text-center py-12">
+            <span className="text-3xl">☁️</span>
+            <p className="text-sm text-gray-400 mt-2">No queued messages.</p>
+          </div>
+        ) : (
+          Object.entries(scheduledByRecipient).map(([rid, group]) => (
+            <div key={rid} className="mb-5">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-7 h-7 rounded-full bg-green-primary/10 flex items-center justify-center text-green-primary text-xs font-semibold">
+                  {(group.name ?? "?")[0].toUpperCase()}
+                </div>
+                <p className="text-sm font-semibold text-gray-800">{group.name}</p>
+              </div>
+              <div className="space-y-2">
+                {group.items.map((sm) => (
+                  <div key={sm.id} className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                    <p className="text-sm text-gray-800 line-clamp-2 whitespace-pre-wrap">{sm.body}</p>
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-[11px] text-gray-400">Queued {formatRelative(sm.createdAt)} — sends when ☀️</span>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => cancelScheduled(sm.id)}
+                          className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded-md hover:bg-gray-100 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => sendScheduledNow(sm)}
+                          className="text-xs text-green-primary font-medium hover:bg-green-primary/10 px-2 py-1 rounded-md transition-colors"
+                        >
+                          Send now
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+
   const emptyState = (
     <div className="flex-1 flex items-center justify-center">
       <div className="text-center px-4">
@@ -786,7 +948,7 @@ export default function ChatPage() {
   );
 
   // Mobile chat/broadcast/newChat overlays go full-screen
-  const mobileShowOverlay = mobileView === "chat" || showNewChat || showBroadcast;
+  const mobileShowOverlay = mobileView === "chat" || showNewChat || showBroadcast || showScheduledPanel;
 
   return (
     <>
@@ -797,6 +959,15 @@ export default function ChatPage() {
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Chats</h2>
             <div className="flex items-center gap-2">
+              {scheduled.length > 0 && (
+                <button
+                  onClick={() => setShowScheduledPanel(true)}
+                  className="text-sm text-amber-700 font-medium hover:text-amber-800 transition-colors"
+                  title="View scheduled messages"
+                >
+                  Scheduled ({scheduled.length})
+                </button>
+              )}
               <button onClick={() => setShowBroadcast(true)} className="text-sm text-gray-400 font-medium hover:text-green-primary transition-colors" title="Broadcast to workspace">
                 Broadcast
               </button>
@@ -809,7 +980,7 @@ export default function ChatPage() {
         </div>
         {/* Main */}
         <div className="flex-1 flex flex-col">
-          {showBroadcast ? broadcastPanel : showNewChat ? newChatPicker : chatArea ?? emptyState}
+          {showScheduledPanel ? scheduledPanel : showBroadcast ? broadcastPanel : showNewChat ? newChatPicker : chatArea ?? emptyState}
         </div>
       </div>
 
@@ -817,11 +988,21 @@ export default function ChatPage() {
       <div className={`md:hidden bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col relative ${mobileShowOverlay ? "hidden" : ""}`} style={{ height: "calc(100dvh - 140px)" }}>
         <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
           <h2 className="text-base font-bold text-gray-900">Messages</h2>
-          <button onClick={() => { setShowNewChat(true); setMobileView("chat"); }} className="w-8 h-8 bg-green-primary text-white rounded-full flex items-center justify-center">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-2">
+            {scheduled.length > 0 && (
+              <button
+                onClick={() => { setShowScheduledPanel(true); setMobileView("chat"); }}
+                className="text-sm text-amber-700 font-medium hover:text-amber-800 transition-colors"
+              >
+                Scheduled ({scheduled.length})
+              </button>
+            )}
+            <button onClick={() => { setShowNewChat(true); setMobileView("chat"); }} className="w-8 h-8 bg-green-primary text-white rounded-full flex items-center justify-center">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto pb-16">{contactList}</div>
         {/* Floating broadcast button */}
@@ -836,10 +1017,10 @@ export default function ChatPage() {
         </button>
       </div>
 
-      {/* Mobile: full-screen overlay for conversation / new chat / broadcast */}
+      {/* Mobile: full-screen overlay for conversation / new chat / broadcast / scheduled */}
       {mobileShowOverlay && (
         <div className="md:hidden fixed inset-0 z-50 bg-white flex flex-col" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
-          {showBroadcast ? broadcastPanel : showNewChat ? newChatPicker : chatArea ?? emptyState}
+          {showScheduledPanel ? scheduledPanel : showBroadcast ? broadcastPanel : showNewChat ? newChatPicker : chatArea ?? emptyState}
         </div>
       )}
     </>

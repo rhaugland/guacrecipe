@@ -10,6 +10,7 @@ import {
   getTodayEventCount,
   isGoogleConfigured,
 } from "../services/google-calendar";
+import { flushScheduledForRecipient } from "../services/scheduled-messages";
 
 const google = new Hono();
 
@@ -127,6 +128,7 @@ google.get("/callback", async (c) => {
             source: "google_calendar",
           });
         }
+        flushScheduledForRecipient(stateRow.userId).catch((err) => console.error("[scheduled] flush failed", err));
       }
     } catch (err) {
       console.error("[google] initial sync after connect failed", err);
@@ -190,6 +192,8 @@ google.post("/sync", requireAuth, async (c) => {
       source: "google_calendar",
     });
   }
+
+  flushScheduledForRecipient(user.id).catch((err) => console.error("[scheduled] flush failed", err));
 
   return c.json({ count, date: today, source: "google_calendar" });
 });

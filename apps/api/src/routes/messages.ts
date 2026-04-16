@@ -1,10 +1,55 @@
 import { Hono } from "hono";
 import { requireAuth } from "../middleware/auth";
-import { db, messages, conversations, users, workspaces, workspaceMembers, chatReadReceipts } from "@guac/db";
+import { db, messages, conversations, users, workspaces, workspaceMembers, chatReadReceipts, scheduledMessages } from "@guac/db";
 import { eq, or, desc, and, gt, ilike } from "drizzle-orm";
 import { routeMessage } from "../services/routing";
+import { flushScheduledForRecipient } from "../services/scheduled-messages";
 
 const messagesRouter = new Hono();
+
+/**
+ * Dispatch a message from sender to recipient inside a workspace.
+ *
+ * This is the shared path used by both the `POST /send` route and the
+ * scheduled-message flush helper. It preserves every side effect of the
+ * original handler:
+ *  - Membership validation (sender and recipient must both belong to the workspace).
+ *  - Sender lookup (sender record must exist).
+ *  - Conversation upsert (continuity), `messages` row insert, working-hours
+ *    queueing, push notifications, etc. — all handled inside `routeMessage`.
+ *
+ * Returns `{ success: true }` on dispatch. Throws on validation failure so
+ * the caller can map errors back to HTTP responses or logging.
+ */
+export async function dispatchMessage(args: {
+  workspaceId: string;
+  senderId: string;
+  recipientId: string;
+  body: string;
+}): Promise<{ success: true }> {
+  const { workspaceId, senderId, recipientId, body } = args;
+
+  if (!workspaceId || !recipientId || !body?.trim()) {
+    throw new Error("workspaceId, recipientId, and body are required");
+  }
+
+  const [membership] = await db.select().from(workspaceMembers).where(
+    and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, senderId))
+  );
+  if (!membership) throw new Error("Not a member of this workspace");
+
+  const [recipientMembership] = await db.select().from(workspaceMembers).where(
+    and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, recipientId))
+  );
+  if (!recipientMembership) throw new Error("Recipient not in workspace");
+
+  const [sender] = await db.select().from(users).where(eq(users.id, senderId));
+  if (!sender) throw new Error("Sender not found");
+
+  await routeMessage(sender, workspaceId, recipientId, body.trim(), "email", sender.email ?? "");
+
+  return { success: true };
+}
 
 messagesRouter.get("/recent", requireAuth, async (c) => {
   const userId = c.get("userId");
@@ -49,28 +94,16 @@ messagesRouter.post("/send", requireAuth, async (c) => {
   const userId = c.get("userId");
   const { workspaceId, recipientId, body } = await c.req.json();
 
-  if (!workspaceId || !recipientId || !body?.trim()) {
-    return c.json({ error: "workspaceId, recipientId, and body are required" }, 400);
+  try {
+    const result = await dispatchMessage({ workspaceId, senderId: userId, recipientId, body });
+    return c.json(result);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Failed to send";
+    let status: 400 | 403 | 404 = 400;
+    if (msg === "Not a member of this workspace") status = 403;
+    else if (msg === "Sender not found") status = 404;
+    return c.json({ error: msg }, status);
   }
-
-  // Verify sender is a member of this workspace
-  const [membership] = await db.select().from(workspaceMembers).where(
-    and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId))
-  );
-  if (!membership) return c.json({ error: "Not a member of this workspace" }, 403);
-
-  // Verify recipient is a member
-  const [recipientMembership] = await db.select().from(workspaceMembers).where(
-    and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, recipientId))
-  );
-  if (!recipientMembership) return c.json({ error: "Recipient not in workspace" }, 400);
-
-  const [sender] = await db.select().from(users).where(eq(users.id, userId));
-  if (!sender) return c.json({ error: "Sender not found" }, 404);
-
-  await routeMessage(sender, workspaceId, recipientId, body.trim(), "email", sender.email ?? "");
-
-  return c.json({ success: true });
 });
 
 // Get conversation history between two users in a workspace
@@ -370,5 +403,98 @@ function formatDuration(ms: number): string {
   if (minutes > 0) return `${minutes}m`;
   return "<1m";
 }
+
+// Schedule a message to send when the recipient's weather clears.
+messagesRouter.post("/schedule", requireAuth, async (c) => {
+  const userId = c.get("userId");
+  const { workspaceId, recipientId, body, condition } = await c.req.json();
+
+  if (!workspaceId || !recipientId || !body?.trim()) {
+    return c.json({ error: "workspaceId, recipientId, and body are required" }, 400);
+  }
+  const cond = typeof condition === "string" && condition.length > 0 ? condition : "recipient_sunny";
+
+  // Validate sender is in the workspace
+  const [membership] = await db.select().from(workspaceMembers).where(
+    and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId))
+  );
+  if (!membership) return c.json({ error: "Not a member of this workspace" }, 403);
+
+  // Validate recipient is in the workspace
+  const [recipientMembership] = await db.select().from(workspaceMembers).where(
+    and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, recipientId))
+  );
+  if (!recipientMembership) return c.json({ error: "Recipient not in workspace" }, 400);
+
+  const [inserted] = await db.insert(scheduledMessages).values({
+    workspaceId,
+    senderId: userId,
+    recipientId,
+    body: body.trim(),
+    condition: cond,
+  }).returning();
+
+  // Look up recipient name/email for response shape
+  const [recipient] = await db.select({ name: users.name, email: users.email })
+    .from(users).where(eq(users.id, recipientId));
+
+  // Fire-and-forget: recipient might already be sunny — try to dispatch immediately.
+  flushScheduledForRecipient(recipientId).catch((err) => console.error("[scheduled] flush failed", err));
+
+  return c.json({
+    scheduled: {
+      id: inserted.id,
+      workspaceId: inserted.workspaceId,
+      recipientId: inserted.recipientId,
+      recipientName: recipient?.name ?? null,
+      recipientEmail: recipient?.email ?? null,
+      body: inserted.body,
+      condition: inserted.condition,
+      createdAt: inserted.createdAt,
+    },
+  });
+});
+
+// List the current user's pending scheduled messages.
+messagesRouter.get("/scheduled", requireAuth, async (c) => {
+  const userId = c.get("userId");
+
+  const rows = await db.select({
+    id: scheduledMessages.id,
+    workspaceId: scheduledMessages.workspaceId,
+    recipientId: scheduledMessages.recipientId,
+    body: scheduledMessages.body,
+    condition: scheduledMessages.condition,
+    createdAt: scheduledMessages.createdAt,
+    recipientName: users.name,
+    recipientEmail: users.email,
+  })
+    .from(scheduledMessages)
+    .innerJoin(users, eq(scheduledMessages.recipientId, users.id))
+    .where(and(
+      eq(scheduledMessages.senderId, userId),
+      eq(scheduledMessages.status, "pending"),
+    ))
+    .orderBy(desc(scheduledMessages.createdAt));
+
+  return c.json({ scheduled: rows });
+});
+
+// Cancel a pending scheduled message (sender-only).
+messagesRouter.delete("/scheduled/:id", requireAuth, async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+
+  const [row] = await db.select().from(scheduledMessages).where(eq(scheduledMessages.id, id));
+  if (!row) return c.json({ error: "Not found" }, 404);
+  if (row.senderId !== userId) return c.json({ error: "Forbidden" }, 403);
+  if (row.status !== "pending") return c.json({ error: "Already " + row.status }, 400);
+
+  await db.update(scheduledMessages)
+    .set({ status: "canceled" })
+    .where(eq(scheduledMessages.id, id));
+
+  return c.json({ ok: true });
+});
 
 export default messagesRouter;

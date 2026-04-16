@@ -3,6 +3,7 @@ import { requireAuth } from "../middleware/auth";
 import { db, dailyMeetingCounts, googleCalendarConnections, workspaceMembers, users, weatherOverrides } from "@guac/db";
 import { eq, and, inArray, gte, lte } from "drizzle-orm";
 import { getTodayEventCount } from "../services/google-calendar";
+import { flushScheduledForRecipient } from "../services/scheduled-messages";
 
 const weather = new Hono();
 
@@ -156,7 +157,7 @@ weather.put("/count", requireAuth, async (c) => {
     });
   }
 
-  // TODO(task-2): flushScheduledForRecipient(user.id) — wired in Task 2
+  flushScheduledForRecipient(user.id).catch((err) => console.error("[scheduled] flush failed", err));
   return c.json({
     date: today,
     count,
@@ -374,7 +375,7 @@ weather.put("/override", requireAuth, async (c) => {
     });
   }
 
-  // TODO(task-2): flushScheduledForRecipient(user.id) — wired in Task 2
+  flushScheduledForRecipient(user.id).catch((err) => console.error("[scheduled] flush failed", err));
   return c.json({ weather: { code: preset.code, emoji: preset.emoji, label: preset.label }, override: true });
 });
 
@@ -384,7 +385,7 @@ weather.delete("/override", requireAuth, async (c) => {
   const today = todayInTimezone(tz);
   await db.delete(weatherOverrides)
     .where(and(eq(weatherOverrides.userId, user.id), eq(weatherOverrides.date, today)));
-  // TODO(task-2): flushScheduledForRecipient(user.id) — wired in Task 2
+  flushScheduledForRecipient(user.id).catch((err) => console.error("[scheduled] flush failed", err));
   return c.json({ ok: true });
 });
 

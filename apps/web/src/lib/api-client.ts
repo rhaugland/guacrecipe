@@ -154,5 +154,14 @@ export const api = {
       request<{ unread: { workspaceId: string; contactId: string; count: number }[] }>("/api/messages/unread"),
     search: (q: string) =>
       request<{ results: import("./types").SearchResult[] }>(`/api/messages/search?q=${encodeURIComponent(q)}`),
+    schedule: (data: { workspaceId: string; recipientId: string; body: string; condition: "recipient_sunny" }) =>
+      request<{ scheduled: import("./types").ScheduledMessage }>(
+        "/api/messages/schedule",
+        { method: "POST", body: JSON.stringify(data) }
+      ),
+    listScheduled: () =>
+      request<{ scheduled: import("./types").ScheduledMessage[] }>("/api/messages/scheduled"),
+    cancelScheduled: (id: string) =>
+      request<{ ok: true }>(`/api/messages/scheduled/${id}`, { method: "DELETE" }),
   },
 };
