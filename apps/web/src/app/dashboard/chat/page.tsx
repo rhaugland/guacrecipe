@@ -784,7 +784,7 @@ export default function ChatPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-3 md:px-6 py-4 space-y-1 bg-gray-50/50">
+      <div className="flex-1 overflow-y-auto px-3 md:px-6 py-4 space-y-1 bg-[#F2F2F7] md:bg-gray-50/50">
         {messages.length === 0 && (
           <p className="text-sm text-gray-400 text-center py-8">
             No messages yet. Send one to {selected.name ?? "this person"} — it'll be delivered via their preferred channel.
@@ -803,28 +803,37 @@ export default function ChatPage() {
                 </p>
               )}
               <div className={`flex ${isMine ? "justify-end" : "justify-start"} ${sameSender && !showTime ? "mt-0.5" : "mt-2"}`}>
-                <div className={`max-w-[80%] md:max-w-[65%] px-3.5 py-2 ${
+                <div className={`max-w-[75%] md:max-w-[65%] px-3.5 py-2 ${
                   isMine
-                    ? `bg-green-primary text-white ${sameSender && !showTime ? "rounded-2xl rounded-br-md" : "rounded-2xl"}`
-                    : `bg-white text-gray-900 shadow-sm ${sameSender && !showTime ? "rounded-2xl rounded-bl-md" : "rounded-2xl"}`
+                    ? `bg-green-primary text-white ${sameSender && !showTime ? "rounded-[22px] rounded-br-md" : "rounded-[22px]"}`
+                    : `bg-white text-gray-900 shadow-sm ${sameSender && !showTime ? "rounded-[22px] rounded-bl-md" : "rounded-[22px]"}`
                 }`}>
                   <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{msg.body}</p>
-                  {isMine && (
-                    <div className="flex justify-end mt-0.5">
-                      <span className={`text-[9px] ${
-                        msg.deliveryStatus === "delivered" ? "text-white/60" :
-                        msg.deliveryStatus === "queued" ? "text-yellow-200/80" :
-                        msg.deliveryStatus === "failed" ? "text-red-200/80" : "text-white/40"
-                      }`}>
-                        {msg.deliveryStatus === "delivered" ? "Delivered" : msg.deliveryStatus === "queued" ? "Queued" : msg.deliveryStatus === "failed" ? "Failed" : "Sending"}
-                      </span>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
           );
         })}
+        {/* Delivery status line — shown only under the most recent outbound message */}
+        {(() => {
+          const lastMine = [...messages].reverse().find((m) => m.senderId === user.id || m.senderId === DEMO_OUTBOUND_SENDER);
+          if (!lastMine) return null;
+          const status = lastMine.deliveryStatus;
+          const label =
+            status === "delivered" ? "Delivered" :
+            status === "queued" ? "Queued" :
+            status === "failed" ? "Failed" :
+            "Sending…";
+          const color =
+            status === "failed" ? "text-red-500" :
+            status === "queued" ? "text-amber-600" :
+            "text-gray-400";
+          return (
+            <div className={`flex justify-end pr-1 ${color} text-[10px] mt-0.5`}>
+              {label}
+            </div>
+          );
+        })()}
         {/* Inline ghost rows: pending scheduled sends to this recipient */}
         {scheduled
           .filter((sm) => selected && sm.recipientId === selected.id && sm.workspaceId === selected.workspaceId)
@@ -876,23 +885,53 @@ export default function ChatPage() {
         );
       })()}
 
-      {/* Input */}
-      <form onSubmit={handleSend} className="px-3 md:px-6 py-2 md:py-2 border-t border-gray-100 bg-white">
-        <div className="flex gap-2 items-end">
-          <input
-            type="text"
+      {/* Input — desktop */}
+      <form onSubmit={handleSend} className="hidden md:block px-6 py-3 border-t border-gray-100 bg-white">
+        <div className="flex items-end gap-2">
+          <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder={`Message ${selected.name ?? ""}...`}
-            className="flex-1 px-4 py-2.5 rounded-full border border-gray-200 text-[16px] focus:outline-none focus:ring-2 focus:ring-green-primary/30 bg-gray-50"
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(e); } }}
+            placeholder={`Message ${selected.name ?? "..."}`}
+            rows={1}
+            className="flex-1 resize-none px-4 py-2 bg-gray-100 rounded-2xl text-[15px] focus:outline-none focus:ring-2 focus:ring-green-primary/30 max-h-32"
           />
           <button
             type="submit"
-            disabled={sending || !draft.trim()}
-            className="w-9 h-9 flex items-center justify-center bg-green-primary text-white rounded-full hover:bg-green-primary/90 transition-colors disabled:opacity-30 flex-shrink-0"
+            disabled={!draft.trim() || sending}
+            className="w-10 h-10 rounded-full bg-green-primary text-white flex items-center justify-center disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
+            aria-label="Send"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" />
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 12l14 0m0 0l-6 -6m6 6l-6 6" />
+            </svg>
+          </button>
+        </div>
+      </form>
+
+      {/* Input — mobile iMessage pill */}
+      <form
+        onSubmit={handleSend}
+        className="md:hidden px-3 pt-2 bg-white"
+        style={{ paddingBottom: `calc(0.5rem + env(safe-area-inset-bottom))` }}
+      >
+        <div className="flex items-end gap-2 rounded-full border border-gray-200 bg-white pl-4 pr-1 py-1">
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(e); } }}
+            placeholder={`Message ${selected.name ?? "..."}`}
+            rows={1}
+            className="flex-1 resize-none bg-transparent text-[15px] leading-snug py-2 focus:outline-none max-h-32"
+          />
+          <button
+            type="submit"
+            disabled={!draft.trim() || sending}
+            className="w-9 h-9 rounded-full bg-green-primary text-white flex items-center justify-center disabled:bg-gray-200 disabled:text-gray-400 transition-colors flex-shrink-0 mb-0.5"
+            aria-label="Send"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m0 0l-6 6m6-6l6 6" />
             </svg>
           </button>
         </div>
