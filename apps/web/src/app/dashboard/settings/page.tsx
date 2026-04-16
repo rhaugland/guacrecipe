@@ -11,6 +11,7 @@ import { CommunicationPrefs } from "../components/CommunicationPrefs";
 import { RoutingRules } from "../components/RoutingRules";
 import { PushNotifications } from "../components/PushNotifications";
 import { GoogleCalendar } from "../components/GoogleCalendar";
+import { DemoTeammates } from "../components/DemoTeammates";
 
 export default function SettingsPage() {
   return (
@@ -37,6 +38,7 @@ function SettingsPageInner() {
       <GoogleCalendar />
       <PushNotifications />
       <RoutingRules workspaces={workspaces} />
+      <DemoTeammates />
       <WorkspaceList workspaces={workspaces} onCreate={create} getMembers={getMembers} addMember={addMember} removeMember={removeMember} setWorkspaceContact={setWorkspaceContact} userId={user.id} />
       <RecentActivity activity={activity} />
     </div>

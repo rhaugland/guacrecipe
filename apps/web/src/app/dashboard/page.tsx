@@ -2,6 +2,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import { api } from "../../lib/api-client";
+import { useDemoMode, useDemoTick } from "../../hooks/useDemoMode";
+import {
+  getDemoTeammates,
+  setDemoTeammateWeather,
+  type DemoWeatherCode,
+} from "../../lib/demo-data";
 
 type WeatherState = {
   date: string;
@@ -68,8 +74,18 @@ function initialOf(t: { name: string | null; email: string | null }): string {
   return source.trim().charAt(0).toUpperCase() || "?";
 }
 
+const DEMO_WEATHER_OPTIONS: { code: DemoWeatherCode; emoji: string; label: string }[] = [
+  { code: "sunny",         emoji: "☀️", label: "Sunny" },
+  { code: "partly_cloudy", emoji: "⛅", label: "Partly cloudy" },
+  { code: "cloudy",        emoji: "☁️", label: "Cloudy" },
+  { code: "rainy",         emoji: "🌧️", label: "Rainy" },
+  { code: "thunderstorm",  emoji: "⛈️", label: "Storm" },
+];
+
 export default function WeatherPage() {
   const { user } = useAuth();
+  const { enabled: demoEnabled } = useDemoMode();
+  useDemoTick();
   const [data, setData] = useState<WeatherState | null>(null);
   const [myWeek, setMyWeek] = useState<WeekDay[] | null>(null);
   const [team, setTeam] = useState<Teammate[] | null>(null);
@@ -235,9 +251,121 @@ export default function WeatherPage() {
               connected={t.connected}
             />
           ))
-        ) : team && team.length === 0 ? (
+        ) : team && team.length === 0 && !demoEnabled ? (
           <p className="text-xs text-gray-400 py-6 text-center">No teammates yet. Invite people from Settings.</p>
         ) : null}
+
+        {/* Demo teammates */}
+        {demoEnabled && getDemoTeammates().map((dt) => {
+          const today = {
+            count: dt.count,
+            weather: { code: dt.weatherCode, emoji: dt.emoji, label: dt.label },
+          };
+          const week: WeekDay[] = [0, 1, 2, 3, 4].map((i) => ({
+            date: `demo-${dt.id}-${i}`,
+            isToday: i === 2,
+            count: dt.count,
+            weather: { code: dt.weatherCode, emoji: dt.emoji, label: dt.label },
+            hasData: true,
+          }));
+          return (
+            <DemoPersonRow
+              key={dt.id}
+              person={{ name: dt.name, email: dt.email }}
+              mode={mode}
+              today={today}
+              week={week}
+              activeCode={dt.weatherCode}
+              onPickWeather={(code) => setDemoTeammateWeather(dt.id, code)}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+type DemoPersonRowProps = {
+  person: { name: string; email: string };
+  mode: Mode;
+  today: { count: number; weather: { code: string; emoji: string; label: string } };
+  week: WeekDay[];
+  activeCode: DemoWeatherCode;
+  onPickWeather: (code: DemoWeatherCode) => void;
+};
+
+function DemoPersonRow({ person, mode, today, week, activeCode, onPickWeather }: DemoPersonRowProps) {
+  if (mode === "daily") {
+    const subtitle = `${today.count} meeting${today.count === 1 ? "" : "s"} • ${shortBlurb(today.weather.code, today.count)}`;
+    return (
+      <div>
+        <div className="flex items-center gap-3 px-5 sm:px-6 py-3.5">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 bg-sky-light text-green-primary">
+            {initialOf(person)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <div className="text-[15px] font-medium text-gray-900 truncate">{displayName(person)}</div>
+              <span className="text-[10px] uppercase tracking-wider text-gray-400">Demo</span>
+            </div>
+            <div className="text-xs truncate text-gray-500">{subtitle}</div>
+          </div>
+          <div className="text-3xl shrink-0 leading-none" aria-label={today.weather.label}>
+            {today.weather.emoji}
+          </div>
+        </div>
+        <div className="px-5 sm:px-6 pb-3 -mt-1.5">
+          <div className="flex items-center gap-1.5" style={{ paddingLeft: "3.25rem" }}>
+            {DEMO_WEATHER_OPTIONS.map((opt) => {
+              const isActive = opt.code === activeCode;
+              return (
+                <button
+                  key={opt.code}
+                  onClick={() => onPickWeather(opt.code)}
+                  title={`Set to ${opt.label}`}
+                  className={`w-6 h-6 rounded-full flex items-center justify-center text-sm leading-none transition ${
+                    isActive
+                      ? "ring-2 ring-green-primary bg-white"
+                      : "border border-gray-200 bg-white opacity-60 hover:opacity-100"
+                  }`}
+                >
+                  {opt.emoji}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Weekly mode
+  return (
+    <div className="px-5 sm:px-6 py-3">
+      <div className="flex items-center gap-3 mb-2">
+        <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 bg-sky-light text-green-primary">
+          {initialOf(person)}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <div className="text-[15px] font-medium text-gray-900 truncate">{displayName(person)}</div>
+            <span className="text-[10px] uppercase tracking-wider text-gray-400">Demo</span>
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-5 gap-1.5 pl-12 pr-1">
+        {week.map((day, i) => (
+          <div
+            key={day.date}
+            className={`text-center rounded-lg py-1.5 ${day.isToday ? "bg-sky-light/50" : "bg-gray-50"}`}
+          >
+            <div className={`text-[10px] font-medium mb-0.5 ${day.isToday ? "text-green-primary" : "text-gray-400"}`}>
+              {DAY_LABELS[i]}
+            </div>
+            <div className="text-xl mb-0.5 leading-none">{day.weather.emoji}</div>
+            <div className="text-[10px] tabular-nums text-gray-600">{day.count}</div>
+          </div>
+        ))}
       </div>
     </div>
   );

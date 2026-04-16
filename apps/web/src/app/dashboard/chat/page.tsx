@@ -4,6 +4,25 @@ import { useAuth } from "../../../hooks/useAuth";
 import { useWorkspaces } from "../../../hooks/useWorkspaces";
 import { api } from "../../../lib/api-client";
 import type { WorkspaceMember, ChatMessage, ChannelIntelligence, SearchResult, ScheduledMessage } from "../../../lib/types";
+import { useDemoMode, useDemoTick } from "../../../hooks/useDemoMode";
+import {
+  DEMO_OUTBOUND_SENDER,
+  DEMO_WORKSPACE_ID,
+  DEMO_WORKSPACE_NAME,
+  addDemoScheduled,
+  appendDemoMessage,
+  cancelDemoScheduled,
+  demoTeammateToContact,
+  dispatchDemoScheduled,
+  getDemoConversation,
+  getDemoScheduled,
+  getDemoTeammate,
+  getDemoTeammates,
+  isDemoId,
+  isDemoScheduledId,
+  makeInboundMessage,
+  makeOutboundMessage,
+} from "../../../lib/demo-data";
 
 type Contact = WorkspaceMember & { workspaceId: string; workspaceName: string };
 
@@ -62,6 +81,16 @@ function formatMs(ms: number): string {
 export default function ChatPage() {
   const { user } = useAuth();
   const { workspaces, getMembers } = useWorkspaces();
+  const { enabled: demoEnabled } = useDemoMode();
+  const demoTick = useDemoTick();
+  const autoReplyTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+
+  useEffect(() => {
+    return () => {
+      autoReplyTimers.current.forEach((t) => clearTimeout(t));
+      autoReplyTimers.current.clear();
+    };
+  }, []);
 
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selected, setSelected] = useState<Contact | null>(null);
@@ -92,7 +121,7 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const loadContacts = useCallback(async () => {
-    if (!user || workspaces.length === 0) return;
+    if (!user) return;
     const allContacts: Contact[] = [];
     for (const ws of workspaces) {
       const members = await getMembers(ws.id);
@@ -100,6 +129,15 @@ export default function ChatPage() {
         if (m.id !== user.id) {
           allContacts.push({ ...m, workspaceId: ws.id, workspaceName: ws.name });
         }
+      }
+    }
+    if (demoEnabled) {
+      for (const dt of getDemoTeammates()) {
+        allContacts.push({
+          ...demoTeammateToContact(dt),
+          workspaceId: DEMO_WORKSPACE_ID,
+          workspaceName: DEMO_WORKSPACE_NAME,
+        });
       }
     }
     setContacts(allContacts);
@@ -111,28 +149,35 @@ export default function ChatPage() {
       );
       if (updated) setSelected(updated);
     }
-  }, [user, workspaces, getMembers, selected]);
+  }, [user, workspaces, getMembers, selected, demoEnabled]);
 
   const loadUnread = useCallback(async () => {
     try {
       const { unread } = await api.messages.unread();
       const counts: Record<string, number> = {};
-      for (const u of unread) counts[`${u.workspaceId}:${u.contactId}`] = u.count;
+      // Filter out any demo IDs defensively (server should never return them, but be safe)
+      for (const u of unread) {
+        if (isDemoId(u.contactId)) continue;
+        counts[`${u.workspaceId}:${u.contactId}`] = u.count;
+      }
       setUnreadCounts(counts);
     } catch {}
   }, []);
 
   const loadScheduled = useCallback(async () => {
+    let realScheduled: ScheduledMessage[] = [];
     try {
       const { scheduled } = await api.messages.listScheduled();
-      setScheduled(scheduled);
+      realScheduled = scheduled;
     } catch {}
-  }, []);
+    const merged = demoEnabled ? [...realScheduled, ...getDemoScheduled()] : realScheduled;
+    setScheduled(merged);
+  }, [demoEnabled]);
 
   const loadTeamWeather = useCallback(async () => {
+    const map: Record<string, WeatherInfo> = {};
     try {
       const { teammates } = await api.weather.team();
-      const map: Record<string, WeatherInfo> = {};
       for (const t of teammates) {
         map[t.userId] = {
           count: t.today?.count ?? null,
@@ -142,16 +187,39 @@ export default function ChatPage() {
           connected: t.connected,
         };
       }
-      setWeatherByUser(map);
     } catch {}
-  }, []);
+    if (demoEnabled) {
+      for (const dt of getDemoTeammates()) {
+        map[dt.id] = {
+          count: dt.count,
+          code: dt.weatherCode,
+          emoji: dt.emoji,
+          label: dt.label,
+          connected: true,
+        };
+      }
+    }
+    setWeatherByUser(map);
+  }, [demoEnabled]);
 
   useEffect(() => {
     loadContacts();
     loadUnread();
     loadTeamWeather();
     loadScheduled();
-  }, [user, workspaces]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, workspaces, demoEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-render-only effect when demo data mutates (rotations, queued flushes, etc).
+  useEffect(() => {
+    if (!demoEnabled) return;
+    // Rebuild scheduled and weather maps from latest demo state.
+    loadScheduled();
+    loadTeamWeather();
+    // Also re-pull conversation if currently viewing a demo contact.
+    if (selected && isDemoId(selected.id)) {
+      setMessages(getDemoConversation(selected.id));
+    }
+  }, [demoTick, demoEnabled, selected, loadScheduled, loadTeamWeather]);
 
   useEffect(() => {
     const interval = setInterval(() => { loadContacts(); loadUnread(); loadTeamWeather(); loadScheduled(); }, 30000);
@@ -159,6 +227,10 @@ export default function ChatPage() {
   }, [loadContacts, loadUnread, loadTeamWeather, loadScheduled]);
 
   const loadConversation = useCallback(async (contact: Contact) => {
+    if (isDemoId(contact.id)) {
+      setMessages(getDemoConversation(contact.id));
+      return;
+    }
     const data = await api.messages.conversation(contact.workspaceId, contact.id);
     setMessages(data.messages);
   }, []);
@@ -173,18 +245,36 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!selected) return;
+    if (isDemoId(selected.id)) return; // demo conversations are mutated locally; no polling needed
     const interval = setInterval(() => loadConversation(selected), 5000);
     return () => clearInterval(interval);
   }, [selected, loadConversation]);
+
+  const scheduleDemoAutoReply = (recipientId: string) => {
+    const dt = getDemoTeammate(recipientId);
+    if (!dt) return;
+    const timer = setTimeout(() => {
+      autoReplyTimers.current.delete(timer);
+      appendDemoMessage(recipientId, makeInboundMessage(recipientId, dt.cannedReply));
+    }, 2000);
+    autoReplyTimers.current.add(timer);
+  };
 
   const sendMessage = async () => {
     if (!draft.trim() || !selected || sending) return;
     setSending(true);
     try {
+      const body = draft.trim();
+      if (isDemoId(selected.id)) {
+        appendDemoMessage(selected.id, makeOutboundMessage(body));
+        setDraft("");
+        scheduleDemoAutoReply(selected.id);
+        return;
+      }
       await api.messages.send({
         workspaceId: selected.workspaceId,
         recipientId: selected.id,
-        body: draft.trim(),
+        body,
       });
       setDraft("");
       await loadConversation(selected);
@@ -196,11 +286,27 @@ export default function ChatPage() {
 
   const scheduleForSunny = async () => {
     if (!draft.trim() || !selected) return;
+    const body = draft.trim();
     try {
+      if (isDemoId(selected.id)) {
+        addDemoScheduled({
+          id: `demo-sched-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          workspaceId: selected.workspaceId,
+          recipientId: selected.id,
+          recipientName: selected.name,
+          recipientEmail: selected.email,
+          body,
+          condition: "recipient_sunny",
+          createdAt: new Date().toISOString(),
+        });
+        setDraft("");
+        setShowStormConfirm(false);
+        return;
+      }
       await api.messages.schedule({
         workspaceId: selected.workspaceId,
         recipientId: selected.id,
-        body: draft.trim(),
+        body,
         condition: "recipient_sunny",
       });
       setDraft("");
@@ -213,6 +319,10 @@ export default function ChatPage() {
 
   const cancelScheduled = async (id: string) => {
     try {
+      if (isDemoScheduledId(id)) {
+        cancelDemoScheduled(id);
+        return;
+      }
       await api.messages.cancelScheduled(id);
       await loadScheduled();
     } catch (err) {
@@ -222,6 +332,11 @@ export default function ChatPage() {
 
   const sendScheduledNow = async (sm: ScheduledMessage) => {
     try {
+      if (isDemoScheduledId(sm.id) || isDemoId(sm.recipientId)) {
+        const dispatched = dispatchDemoScheduled(sm.id);
+        if (dispatched) scheduleDemoAutoReply(sm.recipientId);
+        return;
+      }
       await api.messages.send({
         workspaceId: sm.workspaceId,
         recipientId: sm.recipientId,
@@ -268,6 +383,7 @@ export default function ChatPage() {
     // Mark as read and clear badge
     const key = `${contact.workspaceId}:${contact.id}`;
     setUnreadCounts((prev) => { const next = { ...prev }; delete next[key]; return next; });
+    if (isDemoId(contact.id)) return; // demo contacts: no markRead, no intelligence API call
     api.messages.markRead(contact.workspaceId, contact.id).catch(() => {});
     // Load channel intelligence
     api.messages.intelligence(contact.workspaceId, contact.id)
@@ -614,7 +730,7 @@ export default function ChatPage() {
           </p>
         )}
         {messages.map((msg, idx) => {
-          const isMine = msg.senderId === user.id;
+          const isMine = msg.senderId === user.id || msg.senderId === DEMO_OUTBOUND_SENDER;
           const prev = messages[idx - 1];
           const sameSender = prev && prev.senderId === msg.senderId;
           const showTime = !prev || new Date(msg.createdAt).getTime() - new Date(prev.createdAt).getTime() > 300000;
