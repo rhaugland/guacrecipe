@@ -553,15 +553,15 @@ export default function ChatPage() {
                     </div>
                     <div className="flex-1 min-w-0 text-left border-b border-gray-100 pb-3 -mb-3">
                       <div className="flex items-center gap-1.5">
-                        <p className={`text-[15px] truncate ${isUnread ? "font-semibold text-gray-900" : "font-semibold text-gray-900"}`}>
+                        <p className="text-[15px] truncate font-semibold text-gray-900">
                           {c.name ?? c.email ?? "Unknown"}
                         </p>
                         {weatherByUser[c.id]?.emoji && (
-                          <span className="text-sm leading-none" aria-label={weatherByUser[c.id]?.label ?? ""}>
+                          <span className="text-sm leading-none flex-shrink-0" aria-label={weatherByUser[c.id]?.label ?? ""}>
                             {weatherByUser[c.id]?.emoji}
                           </span>
                         )}
-                        <span className="ml-auto text-xs text-gray-400 flex-shrink-0">{formatRelativeShort(undefined)}</span>
+                        <span className="ml-auto text-xs text-gray-400 flex-shrink-0">{""}</span>
                       </div>
                       <p className={`mt-0.5 text-sm truncate ${isUnread ? "text-gray-800" : "text-gray-500"}`}>
                         {"—"}
@@ -983,8 +983,6 @@ export default function ChatPage() {
     return `${d}d ago`;
   };
 
-
-
   const scheduledPanel = (
     <div className="flex-1 flex flex-col min-h-0">
       {/* Header */}
@@ -1152,20 +1150,4 @@ export default function ChatPage() {
       )}
     </>
   );
-}
-
-function formatRelativeShort(d: Date | string | null | undefined): string {
-  if (!d) return "";
-  const date = typeof d === "string" ? new Date(d) : d;
-  const diffMs = Date.now() - date.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) return "now";
-  if (diffMin < 60) return `${diffMin}m`;
-  const diffH = Math.floor(diffMin / 60);
-  if (diffH < 24) return `${diffH}h`;
-  const diffD = Math.floor(diffH / 24);
-  if (diffD < 7) {
-    return date.toLocaleDateString([], { weekday: "short" });
-  }
-  return date.toLocaleDateString([], { month: "numeric", day: "numeric" });
 }
