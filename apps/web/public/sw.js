@@ -1,11 +1,11 @@
 self.addEventListener("push", (event) => {
   const data = event.data?.json() ?? {};
-  const title = data.title ?? "Guac";
+  const title = data.title ?? "New Sky";
   const options = {
     body: data.body ?? "You have a new message",
-    icon: "/guac-logo.png",
-    badge: "/guac-logo.png",
-    tag: data.tag ?? "guac-notification",
+    icon: "/newsky-icon.png",
+    badge: "/newsky-icon.png",
+    tag: data.tag ?? "newsky-notification",
     data: { url: data.url ?? "/dashboard/chat" },
   };
   event.waitUntil(self.registration.showNotification(title, options));

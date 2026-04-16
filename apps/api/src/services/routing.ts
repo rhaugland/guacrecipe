@@ -142,7 +142,7 @@ export function resolveRouting(input: RoutingInput & { senderId: string }): Rout
 
 async function replyToSender(channel: "sms" | "email" | "discord" | "slack" | "telegram", senderIdentifier: string, msg: string, subject?: string) {
   if (channel === "sms") await sendSms(senderIdentifier, msg);
-  else if (channel === "email") await sendEmail(senderIdentifier, subject ?? "Guac", msg);
+  else if (channel === "email") await sendEmail(senderIdentifier, subject ?? "New Sky", msg);
   else if (channel === "discord") await sendDiscord(senderIdentifier, msg);
   else if (channel === "slack") await sendSlack(senderIdentifier, msg);
   else if (channel === "telegram") await sendTelegram(senderIdentifier, msg);
@@ -180,7 +180,7 @@ export async function handleInboundMessage(input: {
   const [sender] = senderRows ?? [];
 
   if (!sender) {
-    const msg = "You're not registered with Guac. Sign up at " + (process.env.APP_URL ?? "https://guacwithme.com");
+    const msg = "You're not registered with New Sky. Sign up at " + (process.env.APP_URL ?? "https://guacwithme.com");
     await replyToSender(channel, senderIdentifier, msg);
     return;
   }
@@ -262,7 +262,7 @@ export async function handleInboundMessage(input: {
         options,
       });
       const msg = formatDisambiguationMessage("workspace", options);
-      await replyToSender(channel, senderIdentifier, msg, "Guac — Which workspace?");
+      await replyToSender(channel, senderIdentifier, msg, "New Sky — Which workspace?");
       break;
     }
     case "disambiguate_recipient": {
@@ -278,7 +278,7 @@ export async function handleInboundMessage(input: {
         resolvedWorkspaceId: result.workspaceId,
       });
       const msg = formatDisambiguationMessage("recipient", options);
-      await replyToSender(channel, senderIdentifier, msg, "Guac — Who should receive this?");
+      await replyToSender(channel, senderIdentifier, msg, "New Sky — Who should receive this?");
       break;
     }
     case "no_workspaces": {
@@ -299,7 +299,7 @@ async function handleDisambiguationReply(
   const selected = parseDisambiguationReply(reply, session.options);
   if (!selected) {
     const msg = "Invalid selection. " + formatDisambiguationMessage(session.step, session.options);
-    await replyToSender(channel, senderIdentifier, msg, "Guac — Try again");
+    await replyToSender(channel, senderIdentifier, msg, "New Sky — Try again");
     return;
   }
 
@@ -325,7 +325,7 @@ async function handleDisambiguationReply(
         resolvedWorkspaceId: selected.value,
       });
       const msg = formatDisambiguationMessage("recipient", options);
-      await replyToSender(channel, senderIdentifier, msg, "Guac — Who should receive this?");
+      await replyToSender(channel, senderIdentifier, msg, "New Sky — Who should receive this?");
     }
   } else {
     await resolveDisambiguationSession(session.id, { status: "resolved", resolvedRecipientId: selected.value });
@@ -447,6 +447,6 @@ export async function routeMessage(
       ? formatWorkingHoursAck({ recipientName: recipient.name ?? "Recipient", nextAvailable: deliverAt! })
       : `${recipient.name ?? "Recipient"} has notifications paused. Your message is queued.`;
 
-    await replyToSender(senderChannel, senderIdentifier, ackMsg, "Guac — Message queued");
+    await replyToSender(senderChannel, senderIdentifier, ackMsg, "New Sky — Message queued");
   }
 }

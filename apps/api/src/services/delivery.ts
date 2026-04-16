@@ -32,7 +32,7 @@ export function formatDeliveryMessage(input: {
   const joinUrl = input.recipientId
     ? `${APP_URL}/join?ref=${input.recipientId}`
     : `${APP_URL}/join`;
-  return `From ${input.senderName} (${input.workspaceName}):\n${input.body}\n\nReply to respond.\n\n—\nSent via Guac — manage how people reach you\n${joinUrl}`;
+  return `From ${input.senderName} (${input.workspaceName}):\n${input.body}\n\nReply to respond.\n\n—\nSent via New Sky — manage how people reach you\n${joinUrl}`;
 }
 
 export function formatWorkingHoursAck(input: {
@@ -97,7 +97,7 @@ export async function sendEmail(to: string, subject: string, body: string, optio
     const html = wrapEmailHtml(escapedBody, { ctaText: options?.ctaText, ctaUrl: options?.ctaUrl, recipientId: options?.recipientId });
 
     await resend.emails.send({
-      from: `Guac <${GUAC_EMAIL}>`,
+      from: `New Sky <${GUAC_EMAIL}>`,
       to,
       subject,
       text: body,
@@ -286,7 +286,7 @@ export async function deliver(input: {
   const channelLabel = input.channel === "both" ? "Email & SMS" : input.channel.charAt(0).toUpperCase() + input.channel.slice(1);
   if (input.recipientId) {
     sendPush(input.recipientId, {
-      title: "Guac",
+      title: "New Sky",
       body: `${input.senderName} sent a message to your ${channelLabel}`,
       tag: `msg-${input.conversationId}`,
       url: "/dashboard/chat",

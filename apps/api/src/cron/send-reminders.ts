@@ -38,7 +38,7 @@ export async function sendReminders() {
 
     const contact = user.preferredChannel === "sms" ? user.phone! : user.email!;
     if (user.preferredChannel === "sms") await sendSms(contact, msg);
-    else await sendEmail(contact, `Guac — Task reminder`, msg);
+    else await sendEmail(contact, `New Sky — Task reminder`, msg);
 
     await db.update(taskNotifications).set({ sent: true }).where(eq(taskNotifications.id, reminder.id));
   }

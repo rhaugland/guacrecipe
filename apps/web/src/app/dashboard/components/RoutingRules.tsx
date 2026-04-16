@@ -56,7 +56,7 @@ export function RoutingRules({ workspaces }: Props) {
           </li>
           <li className="flex items-start gap-2">
             <span className="text-green-primary font-medium mt-px">4.</span>
-            <span>Otherwise, Guac asks which workspace and/or person.</span>
+            <span>Otherwise, New Sky asks which workspace and/or person.</span>
           </li>
         </ul>
         {hasMultiWord && (

@@ -35,8 +35,8 @@ export function ContactInfo({ prefs, onUpdate }: Props) {
   };
 
   return (
-    <CollapsibleCard title="Send a message through Guac">
-      <p className="text-sm text-gray-500 mb-4">Message Guac from any channel below to route to your workspace members.</p>
+    <CollapsibleCard title="Send a message through New Sky">
+      <p className="text-sm text-gray-500 mb-4">Message New Sky from any channel below to route to your workspace members.</p>
 
       {/* SMS */}
       <div className="flex items-center justify-between py-2.5">
@@ -103,7 +103,7 @@ export function ContactInfo({ prefs, onUpdate }: Props) {
               rel="noopener noreferrer"
               className="px-3 py-1.5 bg-[#5865F2] text-white rounded-lg text-xs font-medium hover:bg-[#4752C4] transition-colors"
             >
-              Add Guac Bot
+              Add New Sky Bot
             </a>
             <button onClick={() => setEditingDiscord(true)} className="px-3 py-1.5 bg-green-light text-green-primary rounded-lg text-xs font-medium">
               Enter User ID
@@ -224,7 +224,7 @@ export function ContactInfo({ prefs, onUpdate }: Props) {
             <li>Open Telegram and search for <span className="font-semibold text-gray-700">@Team_Guac_Bot</span></li>
             <li>Send /start — the bot will reply with your Chat ID</li>
             <li>Paste that Chat ID here</li>
-            <li>DM <span className="font-semibold text-gray-700">@Team_Guac_Bot</span> to send messages through Guac</li>
+            <li>DM <span className="font-semibold text-gray-700">@Team_Guac_Bot</span> to send messages through New Sky</li>
           </ol>
         </div>
       )}

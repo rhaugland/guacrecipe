@@ -28,7 +28,7 @@ telegramWebhook.post("/", async (c) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           chat_id: chatId,
-          text: "Welcome to Guac! 🥑\n\nSend any message here and it'll be routed to your workspace contacts.\n\nSign up at " + (process.env.APP_URL ?? "https://guacwithme.com") + " and add your Telegram Chat ID in your preferences: " + chatId,
+          text: "Welcome to New Sky! ☁️\n\nSend any message here and it'll be routed to your workspace contacts.\n\nSign up at " + (process.env.APP_URL ?? "https://guacwithme.com") + " and add your Telegram Chat ID in your preferences: " + chatId,
         }),
       });
     }

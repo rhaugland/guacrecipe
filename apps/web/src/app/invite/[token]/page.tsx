@@ -44,7 +44,7 @@ export default function InvitePage() {
     return (
       <div className="min-h-screen bg-cream flex items-center justify-center px-4">
         <div className="bg-white rounded-2xl shadow-sm p-8 max-w-md w-full text-center">
-          <div className="text-5xl mb-4">🥑</div>
+          <div className="text-5xl mb-4">☁️</div>
           <h2 className="text-xl font-semibold text-gray-800 mb-2">
             {error === "Already a member" ? "You're already in!" : "Invite not found"}
           </h2>
@@ -73,7 +73,7 @@ export default function InvitePage() {
   return (
     <div className="min-h-screen bg-cream flex items-center justify-center px-4">
       <div className="bg-white rounded-2xl shadow-sm p-8 max-w-md w-full text-center">
-        <div className="text-5xl mb-4">🥑</div>
+        <div className="text-5xl mb-4">☁️</div>
         {joined ? (
           <>
             <h2 className="text-xl font-semibold text-green-primary mb-2">You're in!</h2>

@@ -36,9 +36,9 @@ const TIMING_OPTIONS = [
 function WelcomeStep({ onNext }: { onNext: () => void }) {
   return (
     <div className="text-center py-12 px-6">
-      <div className="text-6xl mb-6">🥑</div>
-      <h1 className="text-3xl font-bold text-green-primary mb-3">Welcome to Guac</h1>
-      <p className="text-gray-500 text-lg mb-2">Your communication switchboard.</p>
+      <div className="text-6xl mb-6">☁️</div>
+      <h1 className="text-3xl font-bold text-green-primary mb-3">Welcome to New Sky</h1>
+      <p className="text-gray-500 text-lg mb-2">Your day at a glance.</p>
       <p className="text-gray-400 text-sm max-w-sm mx-auto mb-8">
         One place to route messages across all your channels — email, text, Slack, Discord, and more.
       </p>
@@ -56,7 +56,7 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
 function HowItWorksStep({ onNext }: { onNext: () => void }) {
   return (
     <div className="text-center py-8 px-6">
-      <h2 className="text-xl font-bold text-gray-900 mb-2">How Guac works</h2>
+      <h2 className="text-xl font-bold text-gray-900 mb-2">How New Sky works</h2>
       <p className="text-gray-400 text-sm mb-8">From you to them, through any channel</p>
 
       {/* Diagram */}
@@ -74,12 +74,12 @@ function HowItWorksStep({ onNext }: { onNext: () => void }) {
         {/* Line */}
         <div className="w-8 md:w-12 h-px bg-green-primary/30 mx-1" />
 
-        {/* Guac */}
+        {/* New Sky */}
         <div className="flex flex-col items-center">
           <div className="w-16 h-16 rounded-full bg-green-primary/10 flex items-center justify-center">
-            <span className="text-3xl">🥑</span>
+            <span className="text-3xl">☁️</span>
           </div>
-          <span className="text-xs font-bold text-green-primary mt-1.5">Guac</span>
+          <span className="text-xs font-bold text-green-primary mt-1.5">New Sky</span>
         </div>
 
         {/* Line */}
@@ -137,7 +137,7 @@ function HowItWorksStep({ onNext }: { onNext: () => void }) {
       </div>
 
       <p className="text-sm text-gray-400 max-w-xs mx-auto mb-8">
-        You send a message through Guac, and we deliver it to them on whichever channel they prefer.
+        You send a message through New Sky, and we deliver it to them on whichever channel they prefer.
       </p>
 
       <button
@@ -361,7 +361,7 @@ function WorkspacesStep({ onNext }: { onNext: () => void }) {
   return (
     <div className="py-8 px-6">
       <div className="text-center mb-6">
-        <div className="text-5xl mb-4">🥑</div>
+        <div className="text-5xl mb-4">☁️</div>
         <h2 className="text-xl font-bold text-gray-900 mb-1">Your Workspaces</h2>
         <p className="text-gray-400 text-sm">You&apos;ve been added to the following workspaces</p>
       </div>

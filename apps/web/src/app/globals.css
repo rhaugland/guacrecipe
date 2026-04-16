@@ -1,9 +1,24 @@
 @import "tailwindcss";
 
 @theme {
-  --color-cream: #FFFDF7;
-  --color-green-primary: #4A7C59;
-  --color-green-secondary: #6B9F5B;
-  --color-green-light: #E8F0E5;
+  /* Sunrise palette — light blue, pink, lavender */
+  --color-cream: #FDF7FB;             /* soft dawn background */
+  --color-green-primary: #7FB3E0;     /* sky blue (primary action) */
+  --color-green-secondary: #C8A2D6;   /* lavender purple */
+  --color-green-light: #FCE4EC;       /* light pink (highlight) */
+
+  /* Semantic sunrise tokens (preferred for new code) */
+  --color-sky-primary: #7FB3E0;
+  --color-dawn-pink: #FFB7C5;
+  --color-lavender: #C8A2D6;
+  --color-sky-light: #E3F0FA;
+  --color-dawn-cream: #FDF7FB;
+
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Body gradient backdrop — sunrise feel */
+body {
+  background: linear-gradient(180deg, #FDF7FB 0%, #FCE4EC 40%, #E3F0FA 100%);
+  background-attachment: fixed;
 }

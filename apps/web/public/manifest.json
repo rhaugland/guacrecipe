@@ -1,21 +1,21 @@
 {
-  "name": "Guac",
-  "short_name": "Guac",
-  "description": "Your communication switchboard",
+  "name": "New Sky",
+  "short_name": "New Sky",
+  "description": "Your day at a glance",
   "start_url": "/dashboard",
   "display": "standalone",
-  "background_color": "#FFFDF7",
-  "theme_color": "#4A7C59",
+  "background_color": "#FDF7FB",
+  "theme_color": "#7FB3E0",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/guac-emoji-icon.png",
+      "src": "/newsky-icon.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/guac-emoji-icon.png",
+      "src": "/newsky-icon.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

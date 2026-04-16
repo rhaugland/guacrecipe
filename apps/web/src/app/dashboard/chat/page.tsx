@@ -600,7 +600,7 @@ export default function ChatPage() {
 
         {broadcastResult && (
           <div className="mt-4 bg-green-light rounded-2xl p-6 text-center">
-            <span className="text-3xl">🥑</span>
+            <span className="text-3xl">☁️</span>
             <p className="text-base font-semibold text-green-primary mt-2">
               Broadcast sent!
             </p>
@@ -642,7 +642,7 @@ export default function ChatPage() {
   const emptyState = (
     <div className="flex-1 flex items-center justify-center">
       <div className="text-center px-4">
-        <span className="text-4xl">🥑</span>
+        <span className="text-4xl">☁️</span>
         <p className="text-sm text-gray-400 mt-2">Select a conversation or start a new chat</p>
         <p className="text-xs text-gray-300 mt-1">Messages are delivered via the recipient's preferred channel</p>
         <button

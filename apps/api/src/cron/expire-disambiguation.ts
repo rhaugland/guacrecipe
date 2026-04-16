@@ -18,6 +18,6 @@ export async function expireDisambiguationSessions() {
 
     const msg = "Message expired. Send again when ready.";
     if (sender.phone) await sendSms(sender.phone, msg);
-    else if (sender.email) await sendEmail(sender.email, "Guac — Message expired", msg);
+    else if (sender.email) await sendEmail(sender.email, "New Sky — Message expired", msg);
   }
 }

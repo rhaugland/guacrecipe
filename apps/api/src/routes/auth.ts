@@ -46,9 +46,9 @@ auth.post("/magic-link", async (c) => {
   if (email) {
     const sent = await sendEmail(
       email,
-      "Your Guac login link 🥑",
-      `Click the button below to sign in to Guac.\n\nThis link expires in 5 days.`,
-      { ctaText: "Sign in to Guac", ctaUrl: magicUrl }
+      "Your New Sky login link ☁️",
+      `Click the button below to sign in to New Sky.\n\nThis link expires in 5 days.`,
+      { ctaText: "Sign in to New Sky", ctaUrl: magicUrl }
     );
     if (!sent) {
       console.error("[auth] Failed to send magic link email to", email);
@@ -57,7 +57,7 @@ auth.post("/magic-link", async (c) => {
   } else if (phone) {
     const sent = await sendSms(
       phone,
-      `Your Guac login link:\n${magicUrl}\n\nExpires in 5 days.`
+      `Your New Sky login link:\n${magicUrl}\n\nExpires in 5 days.`
     );
     if (!sent) {
       console.error("[auth] Failed to send magic link SMS to", phone);

@@ -54,7 +54,7 @@ export default function LoginPage() {
     return (
       <div className="min-h-screen bg-cream flex items-center justify-center">
         <div className="bg-white rounded-2xl shadow-sm p-8 max-w-md w-full text-center">
-          <div className="text-4xl mb-4">🥑</div>
+          <div className="text-4xl mb-4">☁️</div>
           <h2 className="text-xl font-semibold text-green-primary mb-2">Check your {method}!</h2>
           <p className="text-gray-600">We sent you a magic link. Click it to sign in.</p>
         </div>
@@ -66,8 +66,8 @@ export default function LoginPage() {
     <div className="min-h-screen bg-cream flex items-center justify-center">
       <div className="bg-white rounded-2xl shadow-sm p-8 max-w-md w-full">
         <div className="text-center mb-6">
-          <div className="text-4xl mb-2">🥑</div>
-          <h1 className="text-2xl font-bold text-green-primary">Guac</h1>
+          <div className="text-4xl mb-2">☁️</div>
+          <h1 className="text-2xl font-bold text-green-primary">New Sky</h1>
           <p className="text-gray-500 mt-1">Sign in with a magic link</p>
         </div>
 

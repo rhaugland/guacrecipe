@@ -7,7 +7,7 @@ import { setSessionToken } from "../../lib/api-client";
 const CHANNELS = [
   { icon: "📧", name: "Email", desc: "Get messages in your inbox" },
   { icon: "💬", name: "SMS", desc: "Text messages to your phone" },
-  { icon: "🎮", name: "Discord", desc: "DMs from the Guac bot" },
+  { icon: "🎮", name: "Discord", desc: "DMs from the New Sky bot" },
   { icon: "💼", name: "Slack", desc: "Messages in Slack" },
 ];
 
@@ -52,7 +52,7 @@ function JoinPageInner() {
     return (
       <div className="min-h-screen bg-cream flex items-center justify-center px-4">
         <div className="bg-white rounded-2xl shadow-sm p-8 max-w-md w-full text-center">
-          <div className="text-5xl mb-4">🥑</div>
+          <div className="text-5xl mb-4">☁️</div>
           <h2 className="text-xl font-semibold text-green-primary mb-2">Check your email!</h2>
           <p className="text-gray-600">We sent you a magic link. Click it to set up your preferences.</p>
         </div>
@@ -64,13 +64,13 @@ function JoinPageInner() {
     <div className="min-h-screen bg-cream flex flex-col items-center justify-center px-4 py-12">
       {/* Hero */}
       <div className="text-center mb-8 max-w-lg">
-        <div className="text-6xl mb-4">🥑</div>
+        <div className="text-6xl mb-4">☁️</div>
         <h1 className="text-3xl md:text-4xl font-bold text-green-primary mb-3">
-          Someone sent you a message via Guac
+          Someone sent you a message via New Sky
         </h1>
         <p className="text-gray-600 text-lg">
-          Guac lets you control <span className="font-medium text-gray-800">how</span> people reach you.
-          Set your preferred channel once — everyone who messages you through Guac will use it automatically.
+          New Sky lets you control <span className="font-medium text-gray-800">how</span> people reach you.
+          Set your preferred channel once — everyone who messages you through New Sky will use it automatically.
         </p>
       </div>
 
@@ -107,7 +107,7 @@ function JoinPageInner() {
             <div className="w-7 h-7 rounded-full bg-green-primary text-white flex items-center justify-center text-sm font-bold flex-shrink-0">3</div>
             <div>
               <p className="text-sm font-medium text-gray-800">Messages find you automatically</p>
-              <p className="text-xs text-gray-400">Anyone using Guac delivers to your preferred channel</p>
+              <p className="text-xs text-gray-400">Anyone using New Sky delivers to your preferred channel</p>
             </div>
           </div>
         </div>
@@ -130,7 +130,7 @@ function JoinPageInner() {
             type="submit"
             className="w-full mt-3 py-3 bg-green-primary text-white rounded-xl font-medium hover:bg-green-primary/90 transition-colors"
           >
-            Join Guac — it&apos;s free
+            Join New Sky — it&apos;s free
           </button>
         </form>
         <p className="text-xs text-gray-400 text-center mt-3">
