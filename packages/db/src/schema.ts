@@ -101,7 +101,11 @@ export const tasks = pgTable("tasks", {
   id: uuid("id").defaultRandom().primaryKey(),
   workspaceId: uuid("workspace_id").references(() => workspaces.id).notNull(),
   title: varchar("title", { length: 500 }).notNull(),
+  description: text("description"),
   dueDate: date("due_date").notNull(),
+  assigneeId: uuid("assignee_id").references(() => users.id).notNull(),
+  status: varchar("status", { length: 10 }).default("open").notNull(),
+  completedAt: timestamp("completed_at"),
   createdBy: uuid("created_by").references(() => users.id).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
