@@ -1,0 +1,24 @@
+SLACK BOT SETUP INSTRUCTIONS
+
+1. Open api.slack.com/apps in your browser
+2. Click "Create New App"
+3. Choose "From scratch"
+4. Enter app name: Guac
+5. Select your Slack workspace from the dropdown
+6. Click "Create App"
+7. On the left sidebar, click "OAuth & Permissions"
+8. Scroll down to the "Bot Token Scopes" section
+9. Click "Add an OAuth Scope"
+10. Type "chat:write" and select it
+11. Click "Add an OAuth Scope" again
+12. Type "users:read" and select it
+13. Click "Add an OAuth Scope" again
+14. Type "users:read.email" and select it
+15. Scroll back up to the top of the page
+16. Click the green "Install to Workspace" button
+17. Click "Allow" on the authorization screen
+18. You will see "Bot User OAuth Token" starting with xoxb-
+19. Click "Copy" next to that token
+20. Paste it into your .env file replacing the placeholder
+
+xoxb-10891094642849-10876128898054-eidHuF8AD1z7oO5WpdRDqHzO
