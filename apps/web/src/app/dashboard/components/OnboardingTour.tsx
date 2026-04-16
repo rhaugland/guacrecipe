@@ -50,11 +50,11 @@ export function OnboardingTour({ open, onClose }: Props) {
   };
 
   const weatherLegend: { e: string; l: string }[] = [
-    { e: "\u2600\uFE0F", l: "Sunny" },
-    { e: "\u26C5", l: "Partly cloudy" },
-    { e: "\u2601\uFE0F", l: "Cloudy" },
-    { e: "\uD83C\uDF27\uFE0F", l: "Rainy" },
-    { e: "\u26C8\uFE0F", l: "Storm" },
+    { e: "☀️", l: "Sunny" },
+    { e: "⛅", l: "Partly cloudy" },
+    { e: "☁️", l: "Cloudy" },
+    { e: "🌧️", l: "Rainy" },
+    { e: "⛈️", l: "Storm" },
   ];
 
   return (
@@ -93,7 +93,7 @@ export function OnboardingTour({ open, onClose }: Props) {
             <DotPagination current={1} />
             <SkipLink onClick={finish} />
             <div className="flex justify-center mt-2">
-              <span className="text-6xl">{"\uD83D\uDCC5"}</span>
+              <span className="text-6xl">📅</span>
             </div>
             <h3 className="text-lg font-semibold text-gray-900 text-center mt-4">
               Connect your calendar
@@ -123,7 +123,7 @@ export function OnboardingTour({ open, onClose }: Props) {
             <SkipLink onClick={finish} />
             <div className="mt-2 mx-auto max-w-[260px]">
               <div className="px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-2">
-                <span className="text-base">{"\u26C8\uFE0F"}</span>
+                <span className="text-base">⛈️</span>
                 <p className="text-xs text-amber-800 flex-1 text-left">
                   Marcus is slammed — 9 meetings today. Only message if urgent.
                 </p>
