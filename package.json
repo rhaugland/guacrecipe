@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
-    "start": "if [ \"$SERVICE_TYPE\" = \"web\" ]; then cd apps/web && npx next start -p ${PORT:-3000}; else cd apps/api && npx tsx src/env.ts; fi",
+    "start": "if [ \"$SERVICE_TYPE\" = \"web\" ]; then cd apps/web && npx next start -p ${PORT:-3000}; else cd packages/db && npx drizzle-kit migrate && cd ../../apps/api && npx tsx src/env.ts; fi",
     "test": "turbo test",
     "db:generate": "turbo db:generate",
     "db:migrate": "turbo db:migrate"
