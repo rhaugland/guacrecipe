@@ -91,6 +91,35 @@ export const api = {
         source: string;
         weather: { code: string; emoji: string; label: string };
       }>("/api/weather/count", { method: "PUT", body: JSON.stringify({ count }) }),
+    week: () =>
+      request<{
+        today: string;
+        week: Array<{
+          date: string;
+          isToday: boolean;
+          count: number;
+          source: string;
+          weather: { code: string; emoji: string; label: string };
+          hasData: boolean;
+        }>;
+      }>("/api/weather/week"),
+    team: () =>
+      request<{
+        teammates: Array<{
+          userId: string;
+          name: string | null;
+          email: string | null;
+          connected: boolean;
+          today: { count: number; weather: { code: string; emoji: string; label: string } } | null;
+          week: Array<{
+            date: string;
+            isToday: boolean;
+            count: number;
+            weather: { code: string; emoji: string; label: string };
+            hasData: boolean;
+          }>;
+        }>;
+      }>("/api/weather/team"),
   },
   google: {
     status: () => request<{ connected: boolean; email: string | null; configured: boolean }>("/api/google/status"),
