@@ -112,6 +112,8 @@ weather.get("/", requireAuth, async (c) => {
             }).returning();
             row = inserted;
           }
+          // Newly-fetched count may have dropped recipient to sunny — flush any queued sends
+          flushScheduledForRecipient(user.id).catch((err) => console.error("[scheduled] flush failed", err));
         }
       } catch (err) {
         console.error("[weather] background google sync failed", err);
