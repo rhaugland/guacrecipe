@@ -78,6 +78,90 @@ function formatMs(ms: number): string {
   return "<1m";
 }
 
+type IntelligencePopoverProps = {
+  selected: Contact;
+  intelligence: ChannelIntelligence;
+  onClose: () => void;
+  channelsNode: React.ReactNode;
+  paused: boolean;
+};
+
+function IntelligencePopover({ selected, intelligence, onClose, channelsNode, paused }: IntelligencePopoverProps) {
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div className="absolute top-full left-4 right-4 md:left-16 md:right-auto md:w-80 mt-1 bg-white rounded-xl shadow-lg border border-gray-100 z-50 p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-sm font-semibold text-gray-800">Channel Intelligence</h4>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600" aria-label="Close">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* NEW: Reaches via + Paused indicator (mobile folds header badges into the popover) */}
+        <div className="mb-3 flex items-center gap-1.5 flex-wrap">
+          <span className="text-[10px] uppercase tracking-wide text-gray-400 mr-1">Reaches via</span>
+          {channelsNode}
+          {paused && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-red-100 text-red-600">Paused</span>
+          )}
+        </div>
+
+        <p className="text-xs text-gray-400 mb-3">
+          Avg response time for {selected.name} by channel
+        </p>
+
+        <div className="space-y-2">
+          {intelligence.channels.map((ch, i) => {
+            const info = CHANNEL_LABELS[ch.channel];
+            const maxMs = intelligence.channels[intelligence.channels.length - 1]?.avgResponseMs ?? 1;
+            const pct = Math.max(8, Math.round((ch.avgResponseMs / maxMs) * 100));
+            const label = formatMs(ch.avgResponseMs);
+            return (
+              <div key={ch.channel}>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${info?.color ?? "bg-gray-100 text-gray-600"}`}>
+                      {info?.label ?? ch.channel}
+                    </span>
+                    {i === 0 && <span className="text-[10px] text-green-primary font-medium">Fastest</span>}
+                  </div>
+                  <span className="text-xs text-gray-500 font-medium">~{label}</span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-1.5">
+                  <div
+                    className={`h-1.5 rounded-full transition-all ${i === 0 ? "bg-green-primary" : "bg-gray-300"}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+          <div className="text-center flex-1">
+            <p className="text-lg font-bold text-gray-800">{intelligence.totalMessages}</p>
+            <p className="text-[10px] text-gray-400">Messages</p>
+          </div>
+          <div className="w-px h-8 bg-gray-100" />
+          <div className="text-center flex-1">
+            <p className="text-lg font-bold text-gray-800">{intelligence.deliveryRate}%</p>
+            <p className="text-[10px] text-gray-400">Delivered</p>
+          </div>
+          <div className="w-px h-8 bg-gray-100" />
+          <div className="text-center flex-1">
+            <p className="text-lg font-bold text-green-primary">{intelligence.channels.length}</p>
+            <p className="text-[10px] text-gray-400">Channels</p>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function ChatPage() {
   const { user } = useAuth();
   const { workspaces, getMembers } = useWorkspaces();
@@ -622,100 +706,78 @@ export default function ChatPage() {
   const chatArea = selected ? (
     <div className="flex-1 flex flex-col min-h-0">
       {/* Chat header */}
-      <div className="px-2 md:px-6 py-2.5 md:py-3 border-b border-gray-100 flex items-center gap-1.5 md:gap-3 relative bg-white/95 backdrop-blur-sm">
-        <button onClick={handleBack} className="md:hidden text-green-primary p-1.5 -ml-0.5 flex items-center gap-0.5">
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-          <span className="text-[15px] font-normal md:hidden">Back</span>
-        </button>
-        <button
-          onClick={() => setShowIntelligence(!showIntelligence)}
-          className="w-9 h-9 rounded-full bg-green-primary/10 flex items-center justify-center text-green-primary text-sm font-semibold flex-shrink-0 hover:bg-green-primary/20 transition-colors"
-        >
-          {(selected.name ?? "?")[0].toUpperCase()}
-        </button>
-        <button onClick={() => setShowIntelligence(!showIntelligence)} className="flex-1 min-w-0 text-left hover:opacity-80 transition-opacity">
-          <div className="flex items-center gap-1.5">
-            <p className="text-[15px] font-semibold text-gray-900 truncate">{selected.name ?? "Pending"}</p>
-            {weatherByUser[selected.id]?.emoji && (
-              <span className="text-base leading-none" aria-label={weatherByUser[selected.id]?.label ?? ""}>
-                {weatherByUser[selected.id]?.emoji}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-            <ChannelTags channels={getChannels(selected)} />
-            {!selected.notificationsEnabled && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-red-100 text-red-600">Paused</span>
-            )}
-          </div>
-        </button>
-
-        {/* Intelligence popup */}
-        {showIntelligence && intelligence && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setShowIntelligence(false)} />
-            <div className="absolute top-full left-4 right-4 md:left-16 md:right-auto md:w-80 mt-1 bg-white rounded-xl shadow-lg border border-gray-100 z-50 p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-semibold text-gray-800">Channel Intelligence</h4>
-                <button onClick={() => setShowIntelligence(false)} className="text-gray-400 hover:text-gray-600">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              <p className="text-xs text-gray-400 mb-3">
-                Avg response time for {selected.name} by channel
-              </p>
-
-              <div className="space-y-2">
-                {intelligence.channels.map((ch, i) => {
-                  const info = CHANNEL_LABELS[ch.channel];
-                  const maxMs = intelligence.channels[intelligence.channels.length - 1]?.avgResponseMs ?? 1;
-                  const pct = Math.max(8, Math.round((ch.avgResponseMs / maxMs) * 100));
-                  const label = formatMs(ch.avgResponseMs);
-                  return (
-                    <div key={ch.channel}>
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${info?.color ?? "bg-gray-100 text-gray-600"}`}>
-                            {info?.label ?? ch.channel}
-                          </span>
-                          {i === 0 && <span className="text-[10px] text-green-primary font-medium">Fastest</span>}
-                        </div>
-                        <span className="text-xs text-gray-500 font-medium">~{label}</span>
-                      </div>
-                      <div className="w-full bg-gray-100 rounded-full h-1.5">
-                        <div
-                          className={`h-1.5 rounded-full transition-all ${i === 0 ? "bg-green-primary" : "bg-gray-300"}`}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-                <div className="text-center flex-1">
-                  <p className="text-lg font-bold text-gray-800">{intelligence.totalMessages}</p>
-                  <p className="text-[10px] text-gray-400">Messages</p>
-                </div>
-                <div className="w-px h-8 bg-gray-100" />
-                <div className="text-center flex-1">
-                  <p className="text-lg font-bold text-gray-800">{intelligence.deliveryRate}%</p>
-                  <p className="text-[10px] text-gray-400">Delivered</p>
-                </div>
-                <div className="w-px h-8 bg-gray-100" />
-                <div className="text-center flex-1">
-                  <p className="text-lg font-bold text-green-primary">{intelligence.channels.length}</p>
-                  <p className="text-[10px] text-gray-400">Channels</p>
-                </div>
-              </div>
+      <div className="relative">
+        {/* Desktop header (unchanged layout, md+ only) */}
+        <div className="hidden md:flex px-6 py-3 border-b border-gray-100 items-center gap-3 bg-white/95 backdrop-blur-sm">
+          <button
+            onClick={() => setShowIntelligence(!showIntelligence)}
+            className="w-9 h-9 rounded-full bg-green-primary/10 flex items-center justify-center text-green-primary text-sm font-semibold flex-shrink-0 hover:bg-green-primary/20 transition-colors"
+          >
+            {(selected.name ?? "?")[0].toUpperCase()}
+          </button>
+          <button onClick={() => setShowIntelligence(!showIntelligence)} className="flex-1 min-w-0 text-left hover:opacity-80 transition-opacity">
+            <div className="flex items-center gap-1.5">
+              <p className="text-[15px] font-semibold text-gray-900 truncate">{selected.name ?? "Pending"}</p>
+              {weatherByUser[selected.id]?.emoji && (
+                <span className="text-base leading-none" aria-label={weatherByUser[selected.id]?.label ?? ""}>
+                  {weatherByUser[selected.id]?.emoji}
+                </span>
+              )}
             </div>
-          </>
+            <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+              <ChannelTags channels={getChannels(selected)} />
+              {!selected.notificationsEnabled && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-red-100 text-red-600">Paused</span>
+              )}
+            </div>
+          </button>
+        </div>
+
+        {/* Mobile header (centered iMessage style) */}
+        <div className="md:hidden px-2 py-2 border-b border-gray-100 bg-white/95 backdrop-blur-sm flex items-center">
+          {/* Left: back */}
+          <button onClick={handleBack} className="text-green-primary flex items-center gap-0.5 min-w-[64px]" aria-label="Back to messages">
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.25}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+            <span className="text-[15px]">Messages</span>
+          </button>
+          {/* Center: avatar over name */}
+          <button
+            onClick={() => setShowIntelligence(!showIntelligence)}
+            className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center hover:opacity-80 transition-opacity"
+          >
+            <div className="w-7 h-7 rounded-full bg-green-primary/10 flex items-center justify-center text-green-primary text-xs font-semibold">
+              {(selected.name ?? "?")[0].toUpperCase()}
+            </div>
+            <div className="flex items-center gap-1 mt-0.5 max-w-[180px]">
+              <p className="text-[13px] font-semibold text-gray-900 truncate">{selected.name ?? "Pending"}</p>
+              {weatherByUser[selected.id]?.emoji && (
+                <span className="text-xs leading-none">{weatherByUser[selected.id]?.emoji}</span>
+              )}
+            </div>
+          </button>
+          {/* Right: info button */}
+          <button
+            onClick={() => setShowIntelligence(!showIntelligence)}
+            className="ml-auto w-9 h-9 rounded-full flex items-center justify-center text-green-primary hover:bg-green-primary/10 transition-colors"
+            aria-label="Contact info"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <circle cx="12" cy="12" r="9" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8h.01M11 12h1v5h1" />
+            </svg>
+          </button>
+        </div>
+
+        {showIntelligence && intelligence && (
+          <IntelligencePopover
+            selected={selected}
+            intelligence={intelligence}
+            onClose={() => setShowIntelligence(false)}
+            channelsNode={<ChannelTags channels={getChannels(selected)} />}
+            paused={!selected.notificationsEnabled}
+          />
         )}
       </div>
 
