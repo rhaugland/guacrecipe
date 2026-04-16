@@ -8,6 +8,7 @@ type WeatherState = {
   count: number;
   source: string;
   weather: { code: string; emoji: string; label: string };
+  override?: boolean;
   calendarConnected: boolean;
 };
 
@@ -17,6 +18,7 @@ type WeekDay = {
   count: number;
   weather: { code: string; emoji: string; label: string };
   hasData: boolean;
+  override?: boolean;
 };
 
 type Teammate = {
@@ -24,7 +26,7 @@ type Teammate = {
   name: string | null;
   email: string | null;
   connected: boolean;
-  today: { count: number; weather: { code: string; emoji: string; label: string } } | null;
+  today: { count: number; weather: { code: string; emoji: string; label: string }; override?: boolean } | null;
   week: WeekDay[];
 };
 
@@ -39,6 +41,13 @@ const WEATHER_SCALE = [
 ];
 
 const DAY_LABELS = ["M", "T", "W", "T", "F"];
+
+const PRESETS: Array<{ code: string; label: string; emoji: string }> = [
+  { code: "sunny",        label: "Open",       emoji: "☀️" },
+  { code: "cloudy",       label: "Heads-down", emoji: "☁️" },
+  { code: "thunderstorm", label: "Slammed",    emoji: "⛈️" },
+  { code: "ooo",          label: "OOO",        emoji: "🏖️" },
+];
 
 function shortBlurb(code: string | null, count: number): string {
   if (count === 0) return "Open day";
@@ -69,9 +78,8 @@ export default function WeatherPage() {
   const [keyOpen, setKeyOpen] = useState(false);
   const keyRef = useRef<HTMLDivElement>(null);
 
-  // Inline edit for own meeting count
+  // Inline preset picker for own weather
   const [editing, setEditing] = useState(false);
-  const [draftCount, setDraftCount] = useState(0);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -110,22 +118,33 @@ export default function WeatherPage() {
     return <div className="text-gray-500 text-center py-8">Couldn&apos;t load your weather. Refresh and try again.</div>;
   }
 
-  const startEdit = () => {
-    setDraftCount(data.count);
-    setEditing(true);
+  const refreshAll = async () => {
+    const [w, wk] = await Promise.all([api.weather.get(), api.weather.week()]);
+    setData(w);
+    setMyWeek(wk.week);
   };
 
-  const saveCount = async (count: number) => {
+  const pickPreset = async (code: string) => {
     setSaving(true);
     try {
-      const updated = await api.weather.setCount(count);
-      setData({ ...data, ...updated });
+      await api.weather.setOverride(code);
+      await refreshAll();
       setEditing(false);
-      // Refresh week so today's cell updates
-      const wk = await api.weather.week();
-      setMyWeek(wk.week);
     } catch (err) {
-      console.error("[weather] save failed", err);
+      console.error("[weather] override failed", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const clearOverride = async () => {
+    setSaving(true);
+    try {
+      await api.weather.clearOverride();
+      await refreshAll();
+      setEditing(false);
+    } catch (err) {
+      console.error("[weather] clear override failed", err);
     } finally {
       setSaving(false);
     }
@@ -191,15 +210,15 @@ export default function WeatherPage() {
           person={myMate}
           isMe={true}
           mode={mode}
-          today={{ count: data.count, weather: data.weather }}
+          today={{ count: data.count, weather: data.weather, override: data.override }}
           week={myWeek ?? []}
           connected={data.calendarConnected}
-          onEditCount={startEdit}
+          onEditCount={() => setEditing(true)}
           editingCount={editing}
-          draftCount={draftCount}
-          onDraftChange={setDraftCount}
           onCancelEdit={() => setEditing(false)}
-          onSaveCount={() => saveCount(draftCount)}
+          onPickPreset={pickPreset}
+          onClearOverride={clearOverride}
+          isOverridden={Boolean(data.override)}
           saving={saving}
         />
 
@@ -228,16 +247,16 @@ type PersonRowProps = {
   person: { name: string | null; email: string | null };
   isMe: boolean;
   mode: Mode;
-  today: { count: number; weather: { code: string; emoji: string; label: string } } | null;
+  today: { count: number; weather: { code: string; emoji: string; label: string }; override?: boolean } | null;
   week: WeekDay[];
   connected: boolean;
-  // Edit-count props (only used for self)
+  // Edit props (only used for self)
   onEditCount?: () => void;
   editingCount?: boolean;
-  draftCount?: number;
-  onDraftChange?: (n: number) => void;
   onCancelEdit?: () => void;
-  onSaveCount?: () => void;
+  onPickPreset?: (code: string) => void;
+  onClearOverride?: () => void;
+  isOverridden?: boolean;
   saving?: boolean;
 };
 
@@ -247,10 +266,13 @@ function PersonRow(props: PersonRowProps) {
 
   // Daily mode
   if (mode === "daily") {
-    const subtitle = !connected && today === null
+    const isOverridden = Boolean(today?.override);
+    const baseSubtitle = !connected && today === null
       ? "Not connected"
       : today === null
       ? "Open day"
+      : isOverridden
+      ? today.weather.label
       : `${today.count} meeting${today.count === 1 ? "" : "s"} • ${shortBlurb(today.weather.code, today.count)}`;
 
     return (
@@ -267,8 +289,13 @@ function PersonRow(props: PersonRowProps) {
               <div className="text-[15px] font-medium text-gray-900 truncate">{displayName(person)}</div>
               {isMe && <span className="text-[10px] uppercase tracking-wider text-gray-400">You</span>}
             </div>
-            <div className={`text-xs truncate ${!connected && today === null ? "text-gray-300" : "text-gray-500"}`}>
-              {subtitle}{isMe && !props.editingCount ? " • tap to edit" : ""}
+            <div className={`text-xs truncate flex items-center gap-1.5 ${!connected && today === null ? "text-gray-300" : "text-gray-500"}`}>
+              <span className="truncate">{baseSubtitle}{isMe && !props.editingCount ? " • tap to edit" : ""}</span>
+              {isOverridden && (
+                <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 uppercase tracking-wider">
+                  Set manually
+                </span>
+              )}
             </div>
           </div>
           <div className="text-3xl shrink-0 leading-none" aria-label={today?.weather.label ?? "no data"}>
@@ -276,35 +303,41 @@ function PersonRow(props: PersonRowProps) {
           </div>
         </div>
 
-        {/* Inline edit — only for self */}
+        {/* Inline preset picker — only for self */}
         {isMe && props.editingCount && (
           <div className="px-5 sm:px-6 pb-4 -mt-1">
             <div className="bg-sky-light/40 rounded-2xl p-4 border border-sky-primary/20">
-              <p className="text-xs text-gray-600 mb-3 text-center">How many meetings today?</p>
-              <div className="flex items-center justify-center gap-3 mb-3">
-                <button
-                  onClick={(e) => { e.stopPropagation(); props.onDraftChange?.(Math.max(0, (props.draftCount ?? 0) - 1)); }}
-                  className="w-10 h-10 rounded-full bg-white text-green-primary text-xl font-medium border border-gray-200 hover:bg-gray-50 active:scale-95 transition"
-                  disabled={props.saving}
-                >−</button>
-                <div className="w-12 text-2xl font-semibold text-gray-800 tabular-nums text-center">{props.draftCount}</div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); props.onDraftChange?.(Math.min(99, (props.draftCount ?? 0) + 1)); }}
-                  className="w-10 h-10 rounded-full bg-white text-green-primary text-xl font-medium border border-gray-200 hover:bg-gray-50 active:scale-95 transition"
-                  disabled={props.saving}
-                >+</button>
+              <p className="text-xs text-gray-600 mb-3 text-center">How&apos;s today shaping up?</p>
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                {PRESETS.map((p) => (
+                  <button
+                    key={p.code}
+                    onClick={(e) => { e.stopPropagation(); props.onPickPreset?.(p.code); }}
+                    disabled={props.saving}
+                    className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-2xl bg-white border border-gray-200 hover:border-green-primary hover:bg-green-primary/5 active:scale-[0.98] transition disabled:opacity-50"
+                  >
+                    <span className="text-xl leading-none">{p.emoji}</span>
+                    <span className="text-sm font-medium text-gray-700">{p.label}</span>
+                  </button>
+                ))}
               </div>
-              <div className="flex gap-2 justify-center">
+              <div className="flex items-center justify-center gap-3 text-xs">
+                {props.isOverridden && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); props.onClearOverride?.(); }}
+                    disabled={props.saving}
+                    className="text-green-primary hover:underline disabled:opacity-50"
+                  >
+                    Reset to calendar
+                  </button>
+                )}
                 <button
                   onClick={(e) => { e.stopPropagation(); props.onCancelEdit?.(); }}
-                  className="px-4 py-1.5 rounded-full text-xs text-gray-500 hover:bg-gray-100 transition"
                   disabled={props.saving}
-                >Cancel</button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); props.onSaveCount?.(); }}
-                  className="px-5 py-1.5 rounded-full bg-green-primary text-white text-xs font-medium hover:opacity-90 transition disabled:opacity-50"
-                  disabled={props.saving}
-                >{props.saving ? "Saving…" : "Save"}</button>
+                  className="text-gray-500 hover:underline disabled:opacity-50"
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           </div>

@@ -82,6 +82,7 @@ export const api = {
       count: number;
       source: string;
       weather: { code: string; emoji: string; label: string };
+      override?: boolean;
       calendarConnected: boolean;
     }>("/api/weather"),
     setCount: (count: number) =>
@@ -101,6 +102,7 @@ export const api = {
           source: string;
           weather: { code: string; emoji: string; label: string };
           hasData: boolean;
+          override?: boolean;
         }>;
       }>("/api/weather/week"),
     team: () =>
@@ -110,16 +112,23 @@ export const api = {
           name: string | null;
           email: string | null;
           connected: boolean;
-          today: { count: number; weather: { code: string; emoji: string; label: string } } | null;
+          today: { count: number; weather: { code: string; emoji: string; label: string }; override?: boolean } | null;
           week: Array<{
             date: string;
             isToday: boolean;
             count: number;
             weather: { code: string; emoji: string; label: string };
             hasData: boolean;
+            override?: boolean;
           }>;
         }>;
       }>("/api/weather/team"),
+    setOverride: (code: string) =>
+      request<{ weather: { code: string; emoji: string; label: string }; override: true }>(
+        "/api/weather/override",
+        { method: "PUT", body: JSON.stringify({ code }) }
+      ),
+    clearOverride: () => request<{ ok: true }>("/api/weather/override", { method: "DELETE" }),
   },
   google: {
     status: () => request<{ connected: boolean; email: string | null; configured: boolean }>("/api/google/status"),

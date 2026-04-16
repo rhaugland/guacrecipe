@@ -214,3 +214,15 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
   auth: text("auth").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const weatherOverrides = pgTable("weather_overrides", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  date: date("date").notNull(),
+  code: varchar("code", { length: 32 }).notNull(),
+  label: varchar("label", { length: 64 }).notNull(),
+  emoji: varchar("emoji", { length: 16 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("weather_override_user_date_unique").on(table.userId, table.date),
+]);

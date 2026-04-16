@@ -1,12 +1,33 @@
 import { Hono } from "hono";
 import { requireAuth } from "../middleware/auth";
-import { db, dailyMeetingCounts, googleCalendarConnections, workspaceMembers, users } from "@guac/db";
+import { db, dailyMeetingCounts, googleCalendarConnections, workspaceMembers, users, weatherOverrides } from "@guac/db";
 import { eq, and, inArray, gte, lte } from "drizzle-orm";
 import { getTodayEventCount } from "../services/google-calendar";
 
 const weather = new Hono();
 
 const SYNC_FRESHNESS_MS = 10 * 60 * 1000; // re-sync if last update older than 10 min
+
+const OVERRIDE_PRESETS: Record<string, { code: string; label: string; emoji: string }> = {
+  sunny:        { code: "sunny",        label: "Open",       emoji: "☀️" },
+  cloudy:       { code: "cloudy",       label: "Heads-down", emoji: "☁️" },
+  thunderstorm: { code: "thunderstorm", label: "Slammed",    emoji: "⛈️" },
+  ooo:          { code: "ooo",          label: "OOO",        emoji: "🏖️" },
+};
+
+type ResolvedWeather = { weather: { code: string; emoji: string; label: string }; override: boolean };
+
+async function resolveWeather(userId: string, date: string, count: number): Promise<ResolvedWeather> {
+  const [override] = await db.select().from(weatherOverrides)
+    .where(and(eq(weatherOverrides.userId, userId), eq(weatherOverrides.date, date)));
+  if (override) {
+    return {
+      weather: { code: override.code, emoji: override.emoji, label: override.label },
+      override: true,
+    };
+  }
+  return { weather: weatherFromCount(count), override: false };
+}
 
 function todayInTimezone(timezone: string): string {
   // Returns YYYY-MM-DD in the user's timezone
@@ -99,11 +120,13 @@ weather.get("/", requireAuth, async (c) => {
 
   const count = row?.count ?? 0;
   const source = row?.source ?? "manual";
+  const resolved = await resolveWeather(user.id, today, count);
   return c.json({
     date: today,
     count,
     source,
-    weather: weatherFromCount(count),
+    weather: resolved.weather,
+    override: resolved.override,
     calendarConnected,
   });
 });
@@ -133,6 +156,7 @@ weather.put("/count", requireAuth, async (c) => {
     });
   }
 
+  // TODO(task-2): flushScheduledForRecipient(user.id) — wired in Task 2
   return c.json({
     date: today,
     count,
@@ -158,17 +182,30 @@ weather.get("/week", requireAuth, async (c) => {
     ));
   const byDate = new Map(rows.map((r) => [r.date, r]));
 
+  const overrideRows = await db.select()
+    .from(weatherOverrides)
+    .where(and(
+      eq(weatherOverrides.userId, user.id),
+      inArray(weatherOverrides.date, days),
+    ));
+  const overrideByDate = new Map(overrideRows.map((o) => [o.date, o]));
+
   const week = days.map((date) => {
     const row = byDate.get(date);
     const count = row?.count ?? 0;
     const source = row?.source ?? "none";
+    const override = overrideByDate.get(date);
+    const weather = override
+      ? { code: override.code, emoji: override.emoji, label: override.label }
+      : weatherFromCount(count);
     return {
       date,
       isToday: date === today,
       count,
       source,
-      weather: weatherFromCount(count),
-      hasData: Boolean(row),
+      weather,
+      hasData: Boolean(row) || Boolean(override),
+      override: Boolean(override),
     };
   });
 
@@ -229,6 +266,19 @@ weather.get("/team", requireAuth, async (c) => {
     countsByUser.get(row.userId)!.set(row.date, row);
   }
 
+  // Single query: all overrides for these teammates this work week
+  const allOverrides = await db.select()
+    .from(weatherOverrides)
+    .where(and(
+      inArray(weatherOverrides.userId, teammateIds),
+      inArray(weatherOverrides.date, days),
+    ));
+  const overridesByUser = new Map<string, Map<string, typeof allOverrides[number]>>();
+  for (const row of allOverrides) {
+    if (!overridesByUser.has(row.userId)) overridesByUser.set(row.userId, new Map());
+    overridesByUser.get(row.userId)!.set(row.date, row);
+  }
+
   // Build response (unique by user id; pick first occurrence for display name)
   const seen = new Set<string>();
   const teammates: Array<{
@@ -236,8 +286,8 @@ weather.get("/team", requireAuth, async (c) => {
     name: string | null;
     email: string | null;
     connected: boolean;
-    today: { count: number; weather: ReturnType<typeof weatherFromCount> } | null;
-    week: Array<{ date: string; isToday: boolean; count: number; weather: ReturnType<typeof weatherFromCount>; hasData: boolean }>;
+    today: { count: number; weather: ReturnType<typeof weatherFromCount>; override: boolean } | null;
+    week: Array<{ date: string; isToday: boolean; count: number; weather: ReturnType<typeof weatherFromCount>; hasData: boolean; override: boolean }>;
   }> = [];
 
   for (const m of allMembers) {
@@ -245,29 +295,49 @@ weather.get("/team", requireAuth, async (c) => {
     seen.add(m.userId);
 
     const userCounts = countsByUser.get(m.userId) ?? new Map();
+    const userOverrides = overridesByUser.get(m.userId) ?? new Map();
     const todayRow = userCounts.get(today);
+    const todayOverride = userOverrides.get(today);
     const connected = connectedSet.has(m.userId);
 
     const week = days.map((date) => {
       const row = userCounts.get(date);
+      const override = userOverrides.get(date);
       const count = row?.count ?? 0;
+      const weather = override
+        ? { code: override.code, emoji: override.emoji, label: override.label }
+        : weatherFromCount(count);
       return {
         date,
         isToday: date === today,
         count,
-        weather: weatherFromCount(count),
-        hasData: Boolean(row),
+        weather,
+        hasData: Boolean(row) || Boolean(override),
+        override: Boolean(override),
       };
     });
+
+    let todayPayload: { count: number; weather: ReturnType<typeof weatherFromCount>; override: boolean } | null = null;
+    if (todayOverride) {
+      todayPayload = {
+        count: todayRow?.count ?? 0,
+        weather: { code: todayOverride.code, emoji: todayOverride.emoji, label: todayOverride.label },
+        override: true,
+      };
+    } else if (todayRow) {
+      todayPayload = {
+        count: todayRow.count,
+        weather: weatherFromCount(todayRow.count),
+        override: false,
+      };
+    }
 
     teammates.push({
       userId: m.userId,
       name: m.name,
       email: m.email,
       connected,
-      today: todayRow
-        ? { count: todayRow.count, weather: weatherFromCount(todayRow.count) }
-        : null,
+      today: todayPayload,
       week,
     });
   }
@@ -279,6 +349,43 @@ weather.get("/team", requireAuth, async (c) => {
   });
 
   return c.json({ teammates });
+});
+
+weather.put("/override", requireAuth, async (c) => {
+  const user = c.get("user");
+  const body = await c.req.json<{ code: string }>();
+  const preset = OVERRIDE_PRESETS[body.code];
+  if (!preset) return c.json({ error: "Invalid preset" }, 400);
+
+  const tz = user.workingHoursTimezone ?? "America/New_York";
+  const today = todayInTimezone(tz);
+
+  const [existing] = await db.select().from(weatherOverrides)
+    .where(and(eq(weatherOverrides.userId, user.id), eq(weatherOverrides.date, today)));
+
+  if (existing) {
+    await db.update(weatherOverrides)
+      .set({ code: preset.code, label: preset.label, emoji: preset.emoji })
+      .where(eq(weatherOverrides.id, existing.id));
+  } else {
+    await db.insert(weatherOverrides).values({
+      userId: user.id, date: today,
+      code: preset.code, label: preset.label, emoji: preset.emoji,
+    });
+  }
+
+  // TODO(task-2): flushScheduledForRecipient(user.id) — wired in Task 2
+  return c.json({ weather: { code: preset.code, emoji: preset.emoji, label: preset.label }, override: true });
+});
+
+weather.delete("/override", requireAuth, async (c) => {
+  const user = c.get("user");
+  const tz = user.workingHoursTimezone ?? "America/New_York";
+  const today = todayInTimezone(tz);
+  await db.delete(weatherOverrides)
+    .where(and(eq(weatherOverrides.userId, user.id), eq(weatherOverrides.date, today)));
+  // TODO(task-2): flushScheduledForRecipient(user.id) — wired in Task 2
+  return c.json({ ok: true });
 });
 
 export default weather;
