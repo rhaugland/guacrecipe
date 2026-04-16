@@ -436,7 +436,7 @@ export default function ChatPage() {
     }
   };
 
-  const handleSend = async (e: React.FormEvent) => {
+  const handleSend = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     if (!draft.trim() || !selected || sending) return;
     const w = weatherByUser[selected.id];
@@ -840,7 +840,7 @@ export default function ChatPage() {
           .map((sm) => (
             <div key={`ghost-${sm.id}`} className="mt-2">
               <div className="flex justify-end">
-                <div className="max-w-[80%] md:max-w-[65%] px-3.5 py-2 bg-green-primary/50 text-white rounded-2xl">
+                <div className="max-w-[75%] md:max-w-[65%] px-3.5 py-2 bg-green-primary/50 text-white rounded-[22px]">
                   <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{sm.body}</p>
                 </div>
               </div>
