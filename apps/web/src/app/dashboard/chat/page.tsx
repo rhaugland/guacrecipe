@@ -983,7 +983,7 @@ export default function ChatPage() {
       {/* Desktop header (unchanged) */}
       <div className="hidden md:flex items-center gap-3 px-6 py-3 border-b border-gray-100">
         <h3 className="flex-1 text-[15px] font-semibold text-gray-900">Broadcast</h3>
-        <button onClick={() => { setShowBroadcast(false); setMobileView("list"); }} className="text-sm text-gray-400 hover:text-gray-600">Cancel</button>
+        <button onClick={() => { setShowBroadcast(false); setBroadcastDraft(""); setBroadcastResult(null); setMobileView("list"); }} className="text-sm text-gray-400 hover:text-gray-600">Cancel</button>
       </div>
 
       {/* Mobile header (iOS modal) */}
