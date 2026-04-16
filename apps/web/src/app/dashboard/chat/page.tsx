@@ -980,16 +980,29 @@ export default function ChatPage() {
 
   const broadcastPanel = (
     <div className="flex-1 flex flex-col min-h-0">
-      {/* Header */}
-      <div className="px-2 md:px-6 py-2.5 md:py-3 border-b border-gray-100 flex items-center gap-1.5 md:gap-3 bg-white/95 backdrop-blur-sm">
-        <button onClick={handleBack} className="md:hidden text-green-primary p-1.5 -ml-0.5 flex items-center gap-0.5">
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-          <span className="text-[15px] font-normal md:hidden">Back</span>
-        </button>
+      {/* Desktop header (unchanged) */}
+      <div className="hidden md:flex items-center gap-3 px-6 py-3 border-b border-gray-100">
         <h3 className="flex-1 text-[15px] font-semibold text-gray-900">Broadcast</h3>
-        <button onClick={() => { setShowBroadcast(false); setMobileView("list"); }} className="text-sm text-gray-400 hover:text-gray-600 hidden md:block">Cancel</button>
+        <button onClick={() => { setShowBroadcast(false); setMobileView("list"); }} className="text-sm text-gray-400 hover:text-gray-600">Cancel</button>
+      </div>
+
+      {/* Mobile header (iOS modal) */}
+      <div className="md:hidden grid grid-cols-3 items-center px-3 py-3 border-b border-gray-100 bg-white">
+        <button
+          onClick={() => { setShowBroadcast(false); setBroadcastDraft(""); setBroadcastResult(null); setMobileView("list"); }}
+          className="justify-self-start text-[15px] text-gray-500 active:opacity-60"
+        >
+          Cancel
+        </button>
+        <h3 className="justify-self-center text-[17px] font-semibold text-gray-900">Broadcast</h3>
+        <button
+          type="submit"
+          form="broadcast-form"
+          disabled={broadcastSending || !broadcastDraft.trim() || !broadcastWorkspace}
+          className="justify-self-end text-[15px] font-semibold text-green-primary disabled:text-gray-300 active:opacity-60"
+        >
+          {broadcastSending ? "Sending…" : "Send"}
+        </button>
       </div>
 
       {/* Content */}
@@ -1040,7 +1053,7 @@ export default function ChatPage() {
       </div>
 
       {/* Input pinned to bottom */}
-      <form onSubmit={handleBroadcast} className="px-3 md:px-6 py-2 md:py-3 border-t border-gray-100 bg-white">
+      <form id="broadcast-form" onSubmit={handleBroadcast} className="px-3 md:px-6 py-2 md:py-3 border-t border-gray-100 bg-white">
         <div className="flex gap-2 items-end">
           <input
             type="text"
@@ -1052,7 +1065,7 @@ export default function ChatPage() {
           <button
             type="submit"
             disabled={broadcastSending || !broadcastDraft.trim() || !broadcastWorkspace}
-            className="w-9 h-9 flex items-center justify-center bg-green-primary text-white rounded-full hover:bg-green-primary/90 transition-colors disabled:opacity-30 flex-shrink-0"
+            className="hidden md:flex w-9 h-9 items-center justify-center bg-green-primary text-white rounded-full hover:bg-green-primary/90 transition-colors disabled:opacity-30 flex-shrink-0"
           >
             {broadcastSending ? (
               <span className="text-xs font-bold">...</span>
@@ -1088,16 +1101,25 @@ export default function ChatPage() {
 
   const scheduledPanel = (
     <div className="flex-1 flex flex-col min-h-0">
-      {/* Header */}
-      <div className="px-2 md:px-6 py-2.5 md:py-3 border-b border-gray-100 flex items-center gap-1.5 md:gap-3 bg-white/95 backdrop-blur-sm">
-        <button onClick={handleBack} className="md:hidden text-green-primary p-1.5 -ml-0.5 flex items-center gap-0.5">
+      {/* Desktop header (unchanged) */}
+      <div className="hidden md:flex items-center gap-3 px-6 py-3 border-b border-gray-100">
+        <h3 className="flex-1 text-[15px] font-semibold text-gray-900">Scheduled</h3>
+        <button onClick={() => { setShowScheduledPanel(false); setMobileView("list"); }} className="text-sm text-gray-400 hover:text-gray-600">Close</button>
+      </div>
+
+      {/* Mobile header (iOS modal — Back + title, no right action) */}
+      <div className="md:hidden grid grid-cols-3 items-center px-3 py-3 border-b border-gray-100 bg-white">
+        <button
+          onClick={() => { setShowScheduledPanel(false); setMobileView("list"); }}
+          className="justify-self-start text-[15px] text-green-primary flex items-center gap-0.5 active:opacity-60"
+        >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
-          <span className="text-[15px] font-normal md:hidden">Back</span>
+          Messages
         </button>
-        <h3 className="flex-1 text-[15px] font-semibold text-gray-900">Scheduled</h3>
-        <button onClick={() => { setShowScheduledPanel(false); setMobileView("list"); }} className="text-sm text-gray-400 hover:text-gray-600">Close</button>
+        <h3 className="justify-self-center text-[17px] font-semibold text-gray-900">Scheduled</h3>
+        <div />
       </div>
 
       {/* Body */}
