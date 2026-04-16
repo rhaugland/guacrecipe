@@ -645,7 +645,7 @@ export default function ChatPage() {
                             {weatherByUser[c.id]?.emoji}
                           </span>
                         )}
-                        <span className="ml-auto text-xs text-gray-400 flex-shrink-0">{""}</span>
+                        {/* Timestamp slot — wire formatRelative(c.lastActivityAt) when field is available */}
                       </div>
                       <p className={`mt-0.5 text-sm truncate ${isUnread ? "text-gray-800" : "text-gray-500"}`}>
                         {"—"}
@@ -922,7 +922,7 @@ export default function ChatPage() {
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(e); } }}
             placeholder={`Message ${selected.name ?? "..."}`}
             rows={1}
-            className="flex-1 resize-none bg-transparent text-[15px] leading-snug py-2 focus:outline-none max-h-32"
+            className="flex-1 resize-none bg-transparent text-[16px] leading-snug py-2 focus:outline-none max-h-32"
           />
           <button
             type="submit"
