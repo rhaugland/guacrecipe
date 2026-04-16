@@ -92,6 +92,15 @@ export const api = {
         weather: { code: string; emoji: string; label: string };
       }>("/api/weather/count", { method: "PUT", body: JSON.stringify({ count }) }),
   },
+  google: {
+    status: () => request<{ connected: boolean; email: string | null; configured: boolean }>("/api/google/status"),
+    connectUrl: () => {
+      const token = getSessionToken();
+      return `${API_BASE}/api/google/connect?token=${encodeURIComponent(token ?? "")}`;
+    },
+    disconnect: () => request("/api/google/disconnect", { method: "POST" }),
+    sync: () => request<{ count: number; date: string; source: string }>("/api/google/sync", { method: "POST" }),
+  },
   messages: {
     send: (data: { workspaceId: string; recipientId: string; body: string }) =>
       request("/api/messages/send", { method: "POST", body: JSON.stringify(data) }),

@@ -16,6 +16,7 @@ import { startDiscordGateway } from "./routes/webhooks/discord";
 import cron from "./routes/cron";
 import pushRouter from "./routes/push";
 import weatherRouter from "./routes/weather";
+import googleRouter from "./routes/google";
 
 const app = new Hono();
 
@@ -42,6 +43,7 @@ app.route("/api/slack", slackOauth);
 app.route("/api/cron", cron);
 app.route("/api/push", pushRouter);
 app.route("/api/weather", weatherRouter);
+app.route("/api/google", googleRouter);
 
 serve({ fetch: app.fetch, port: 3002 }, (info) => {
   console.log(`Guac API running on http://localhost:${info.port}`);

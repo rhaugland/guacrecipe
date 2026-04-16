@@ -186,6 +186,26 @@ export const dailyMeetingCounts = pgTable("daily_meeting_counts", {
   uniqueIndex("daily_meeting_user_date_unique").on(table.userId, table.date),
 ]);
 
+export const googleCalendarConnections = pgTable("google_calendar_connections", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id).notNull().unique(),
+  googleEmail: varchar("google_email", { length: 255 }),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token").notNull(),
+  tokenExpiresAt: timestamp("token_expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const oauthStates = pgTable("oauth_states", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  state: varchar("state", { length: 128 }).unique().notNull(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  provider: varchar("provider", { length: 32 }).notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const pushSubscriptions = pgTable("push_subscriptions", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id").references(() => users.id).notNull(),

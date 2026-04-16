@@ -15,6 +15,13 @@
       "when": 1776357409131,
       "tag": "0001_rich_warhawk",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776359475529,
+      "tag": "0002_google_calendar",
+      "breakpoints": true
     }
   ]
 }

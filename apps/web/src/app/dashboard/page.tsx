@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "../../hooks/useAuth";
 import { api } from "../../lib/api-client";
 
@@ -9,6 +10,12 @@ type WeatherState = {
   source: string;
   weather: { code: string; emoji: string; label: string };
   calendarConnected: boolean;
+};
+
+type GoogleStatus = {
+  connected: boolean;
+  email: string | null;
+  configured: boolean;
 };
 
 const WEATHER_SCALE = [
@@ -29,20 +36,55 @@ function forecastBlurb(code: string, count: number): string {
 }
 
 export default function WeatherPage() {
+  return (
+    <Suspense fallback={<div className="text-green-primary text-lg text-center py-8">Loading...</div>}>
+      <WeatherPageInner />
+    </Suspense>
+  );
+}
+
+function WeatherPageInner() {
   const { user } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [data, setData] = useState<WeatherState | null>(null);
+  const [google, setGoogle] = useState<GoogleStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [draftCount, setDraftCount] = useState(0);
+  const [banner, setBanner] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   useEffect(() => {
     if (!user) return;
-    api.weather.get()
-      .then((d) => setData(d))
+    Promise.all([api.weather.get(), api.google.status()])
+      .then(([w, g]) => {
+        setData(w);
+        setGoogle(g);
+      })
       .catch((err) => console.error("[weather] load failed", err))
       .finally(() => setLoading(false));
   }, [user]);
+
+  // Handle ?google=connected or ?google=error redirect from OAuth callback
+  useEffect(() => {
+    const status = searchParams.get("google");
+    if (!status) return;
+
+    if (status === "connected") {
+      setBanner({ kind: "ok", text: "Google Calendar connected. Your forecast will update from your meetings." });
+    } else if (status === "error") {
+      const reason = searchParams.get("reason") ?? "unknown";
+      setBanner({ kind: "err", text: `Couldn't connect Google Calendar (${reason}). Try again.` });
+    }
+
+    // Clear the query params from the URL
+    router.replace("/dashboard", { scroll: false });
+
+    const timer = setTimeout(() => setBanner(null), 6000);
+    return () => clearTimeout(timer);
+  }, [searchParams, router]);
 
   if (!user || loading) {
     return <div className="text-green-primary text-lg text-center py-8">Loading...</div>;
@@ -70,8 +112,47 @@ export default function WeatherPage() {
     }
   };
 
+  const connectGoogle = () => {
+    window.location.href = api.google.connectUrl();
+  };
+
+  const disconnectGoogle = async () => {
+    try {
+      await api.google.disconnect();
+      setGoogle({ ...(google ?? { configured: true }), connected: false, email: null });
+      setBanner({ kind: "ok", text: "Google Calendar disconnected." });
+      setTimeout(() => setBanner(null), 4000);
+    } catch (err) {
+      console.error("[google] disconnect failed", err);
+    }
+  };
+
+  const syncFromGoogle = async () => {
+    setSyncing(true);
+    try {
+      const synced = await api.google.sync();
+      // Reload weather to get updated emoji/label
+      const fresh = await api.weather.get();
+      setData(fresh);
+      setBanner({ kind: "ok", text: `Synced — ${synced.count} meeting${synced.count === 1 ? "" : "s"} today.` });
+      setTimeout(() => setBanner(null), 4000);
+    } catch (err) {
+      console.error("[google] sync failed", err);
+      setBanner({ kind: "err", text: "Sync failed. Try again." });
+      setTimeout(() => setBanner(null), 4000);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto space-y-4">
+      {banner && (
+        <div className={`rounded-xl px-4 py-3 text-sm ${banner.kind === "ok" ? "bg-sky-light/60 text-green-primary" : "bg-red-50 text-red-600"}`}>
+          {banner.text}
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl shadow-sm p-8 md:p-12 text-center">
         <div className="text-7xl md:text-8xl mb-4">{data.weather.emoji}</div>
         <h2 className="text-2xl md:text-3xl font-bold text-green-primary mb-2">{data.weather.label}</h2>
@@ -120,8 +201,12 @@ export default function WeatherPage() {
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-sky-light/60 hover:bg-sky-light text-green-primary text-sm font-medium transition"
           >
             <span className="text-base">📅</span>
-            {data.count === 0 ? "Set today's meeting count" : `${data.count} meetings today — edit`}
+            {data.count === 0 ? "Set today's meeting count" : `${data.count} meeting${data.count === 1 ? "" : "s"} today — edit`}
           </button>
+        )}
+
+        {data.source === "google_calendar" && (
+          <p className="text-xs text-gray-400 mt-3">Pulled from Google Calendar</p>
         )}
       </div>
 
@@ -144,17 +229,46 @@ export default function WeatherPage() {
       <div className="bg-white rounded-2xl shadow-sm p-5 md:p-6">
         <div className="flex items-start gap-3">
           <div className="text-2xl shrink-0">📆</div>
-          <div className="flex-1">
-            <h3 className="text-sm font-semibold text-gray-700 mb-1">Connect your calendar</h3>
-            <p className="text-xs text-gray-500 mb-3">
-              Link Google Calendar to auto-update your forecast each morning. Coming soon.
-            </p>
-            <button
-              disabled
-              className="px-4 py-2 rounded-full bg-gray-100 text-gray-400 text-xs font-medium cursor-not-allowed"
-            >
-              Connect Google Calendar
-            </button>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-semibold text-gray-700 mb-1">Google Calendar</h3>
+            {google?.connected ? (
+              <>
+                <p className="text-xs text-gray-500 mb-3 truncate">
+                  Connected as <span className="font-medium text-gray-700">{google.email ?? "your Google account"}</span>
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={syncFromGoogle}
+                    disabled={syncing}
+                    className="px-4 py-2 rounded-full bg-green-primary text-white text-xs font-medium hover:opacity-90 transition disabled:opacity-50"
+                  >
+                    {syncing ? "Syncing..." : "Sync today"}
+                  </button>
+                  <button
+                    onClick={disconnectGoogle}
+                    className="px-4 py-2 rounded-full bg-gray-100 text-gray-600 text-xs font-medium hover:bg-gray-200 transition"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              </>
+            ) : google?.configured === false ? (
+              <p className="text-xs text-gray-400">
+                Calendar integration isn&apos;t configured on this server yet.
+              </p>
+            ) : (
+              <>
+                <p className="text-xs text-gray-500 mb-3">
+                  Auto-update your forecast from your primary calendar.
+                </p>
+                <button
+                  onClick={connectGoogle}
+                  className="px-4 py-2 rounded-full bg-green-primary text-white text-xs font-medium hover:opacity-90 transition"
+                >
+                  Connect Google Calendar
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
