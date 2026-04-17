@@ -13,6 +13,34 @@ function isMissingTable(err: unknown): boolean {
   return typeof err === "object" && err !== null && (err as { code?: string }).code === "42P01";
 }
 
+const TIMING_OFFSETS: Record<string, number> = {
+  "2_weeks": 14 * 86400000,
+  "1_week": 7 * 86400000,
+  "3_days": 3 * 86400000,
+  "2_days": 2 * 86400000,
+  "day_of": 0,
+};
+
+async function scheduleTaskNotifications(taskId: string, assigneeId: string, dueDate: string): Promise<void> {
+  const [assignee] = await db.select({ notificationTimings: users.notificationTimings })
+    .from(users).where(eq(users.id, assigneeId));
+  const timings = assignee?.notificationTimings ?? ["day_of"];
+  const dueDateMs = new Date(dueDate + "T00:00:00Z").getTime();
+  const now = Date.now();
+  const notifRows = timings
+    .filter((t: string) => TIMING_OFFSETS[t] !== undefined)
+    .map((t: string) => ({
+      taskId,
+      userId: assigneeId,
+      timing: t,
+      scheduledFor: new Date(dueDateMs - (TIMING_OFFSETS[t] ?? 0)),
+    }))
+    .filter((r) => r.scheduledFor.getTime() > now);
+  if (notifRows.length > 0) {
+    await db.insert(taskNotifications).values(notifRows);
+  }
+}
+
 const tasksRouter = new Hono<Env>();
 tasksRouter.use("*", requireAuth);
 
@@ -47,32 +75,7 @@ tasksRouter.post("/", async (c) => {
       createdBy: userId,
     }).returning();
 
-    // Schedule reminder notifications based on assignee's timing preferences
-    const [assignee] = await db.select({ notificationTimings: users.notificationTimings })
-      .from(users).where(eq(users.id, assigneeId as string));
-    const timings = assignee?.notificationTimings ?? ["day_of"];
-    const dueDateMs = new Date((dueDate as string) + "T00:00:00Z").getTime();
-    const TIMING_OFFSETS: Record<string, number> = {
-      "2_weeks": 14 * 86400000,
-      "1_week": 7 * 86400000,
-      "3_days": 3 * 86400000,
-      "2_days": 2 * 86400000,
-      "day_of": 0,
-    };
-    const now = Date.now();
-    const notifRows = timings
-      .filter((t: string) => TIMING_OFFSETS[t] !== undefined)
-      .map((t: string) => ({
-        taskId: task.id,
-        userId: assigneeId as string,
-        timing: t,
-        scheduledFor: new Date(dueDateMs - (TIMING_OFFSETS[t] ?? 0)),
-      }))
-      .filter((r) => r.scheduledFor.getTime() > now);
-
-    if (notifRows.length > 0) {
-      await db.insert(taskNotifications).values(notifRows);
-    }
+    await scheduleTaskNotifications(task.id, assigneeId as string, dueDate as string);
 
     return c.json(task, 201);
   } catch (err) {
@@ -89,6 +92,12 @@ tasksRouter.get("/", async (c) => {
   const status = c.req.query("status") ?? "open";
 
   if (!workspaceId) return c.json({ error: "workspaceId is required" }, 400);
+  if (role !== "assignee" && role !== "creator") {
+    return c.json({ error: "role must be 'assignee' or 'creator'" }, 400);
+  }
+  if (!["open", "done", "all"].includes(status)) {
+    return c.json({ error: "status must be 'open', 'done', or 'all'" }, 400);
+  }
 
   try {
     const roleFilter = role === "creator"
@@ -123,6 +132,8 @@ tasksRouter.get("/", async (c) => {
       .where(eq(workspaceMembers.workspaceId, workspaceId));
     const userMap = new Map(wsMembers.map((u) => [u.id, u]));
 
+    if (!userMap.has(userId)) return c.json({ error: "Not a member of this workspace" }, 403);
+
     const tasksWithNames = rows.map((t) => ({
       ...t,
       creatorName: userMap.get(t.createdBy)?.name ?? userMap.get(t.createdBy)?.email ?? "Unknown",
@@ -142,9 +153,18 @@ tasksRouter.patch("/:id", async (c) => {
   const taskId = c.req.param("id");
   const body = await c.req.json();
 
+  if (body.status && body.status !== "open" && body.status !== "done") {
+    return c.json({ error: "Status must be 'open' or 'done'" }, 400);
+  }
+
   try {
     const [existing] = await db.select().from(tasks).where(eq(tasks.id, taskId));
     if (!existing) return c.json({ error: "Task not found" }, 404);
+
+    const [membership] = await db.select({ userId: workspaceMembers.userId })
+      .from(workspaceMembers)
+      .where(and(eq(workspaceMembers.workspaceId, existing.workspaceId), eq(workspaceMembers.userId, userId)));
+    if (!membership) return c.json({ error: "Not a member of this workspace" }, 403);
 
     const isCreator = existing.createdBy === userId;
     const isAssignee = existing.assigneeId === userId;
@@ -172,34 +192,10 @@ tasksRouter.patch("/:id", async (c) => {
 
     // Due date change: reschedule reminders
     if (body.dueDate && isCreator && (body.dueDate as string) !== existing.dueDate) {
-      // Delete unsent reminders
+      // Delete unsent reminders then recompute
       await db.delete(taskNotifications)
         .where(and(eq(taskNotifications.taskId, taskId), eq(taskNotifications.sent, false)));
-      // Recompute
-      const [assignee] = await db.select({ notificationTimings: users.notificationTimings })
-        .from(users).where(eq(users.id, existing.assigneeId));
-      const timings = assignee?.notificationTimings ?? ["day_of"];
-      const dueDateMs = new Date((body.dueDate as string) + "T00:00:00Z").getTime();
-      const TIMING_OFFSETS: Record<string, number> = {
-        "2_weeks": 14 * 86400000,
-        "1_week": 7 * 86400000,
-        "3_days": 3 * 86400000,
-        "2_days": 2 * 86400000,
-        "day_of": 0,
-      };
-      const now = Date.now();
-      const notifRows = timings
-        .filter((t: string) => TIMING_OFFSETS[t] !== undefined)
-        .map((t: string) => ({
-          taskId,
-          userId: existing.assigneeId,
-          timing: t,
-          scheduledFor: new Date(dueDateMs - (TIMING_OFFSETS[t] ?? 0)),
-        }))
-        .filter((r) => r.scheduledFor.getTime() > now);
-      if (notifRows.length > 0) {
-        await db.insert(taskNotifications).values(notifRows);
-      }
+      await scheduleTaskNotifications(taskId, existing.assigneeId, body.dueDate as string);
     }
 
     if (Object.keys(updates).length > 0) {
@@ -221,6 +217,12 @@ tasksRouter.delete("/:id", async (c) => {
   try {
     const [existing] = await db.select().from(tasks).where(eq(tasks.id, taskId));
     if (!existing) return c.json({ error: "Task not found" }, 404);
+
+    const [membership] = await db.select({ userId: workspaceMembers.userId })
+      .from(workspaceMembers)
+      .where(and(eq(workspaceMembers.workspaceId, existing.workspaceId), eq(workspaceMembers.userId, userId)));
+    if (!membership) return c.json({ error: "Not a member of this workspace" }, 403);
+
     if (existing.createdBy !== userId) return c.json({ error: "Only the creator can delete a task" }, 403);
 
     await db.delete(taskNotifications).where(eq(taskNotifications.taskId, taskId));
