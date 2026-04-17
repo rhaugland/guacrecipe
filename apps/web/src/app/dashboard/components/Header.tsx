@@ -10,6 +10,7 @@ export function Header({ userName, onLogout }: Props) {
   const tabs = [
     { label: "Weather", href: "/dashboard" },
     { label: "Chat", href: "/dashboard/chat" },
+    { label: "Tasks", href: "/dashboard/tasks" },
   ];
 
   const settingsActive = pathname.startsWith("/dashboard/settings");
