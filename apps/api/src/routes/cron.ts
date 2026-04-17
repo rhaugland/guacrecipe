@@ -39,7 +39,6 @@ cron.post("/process-task-reminders", async (c) => {
       notifId: taskNotifications.id,
       taskId: taskNotifications.taskId,
       userId: taskNotifications.userId,
-      timing: taskNotifications.timing,
     })
       .from(taskNotifications)
       .where(and(
