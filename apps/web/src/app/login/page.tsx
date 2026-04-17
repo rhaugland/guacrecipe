@@ -68,7 +68,7 @@ export default function LoginPage() {
         <div className="text-center mb-6">
           <div className="text-4xl mb-2">☁️</div>
           <h1 className="text-2xl font-bold text-green-primary">New Sky</h1>
-          <p className="text-gray-500 mt-1">Sign in with a magic link</p>
+          <p className="text-gray-500 mt-1">Every day begins with a new sky</p>
         </div>
 
         <div className="flex gap-2 mb-6">
@@ -108,7 +108,7 @@ export default function LoginPage() {
             type="submit"
             className="w-full mt-4 py-3 bg-green-primary text-white rounded-lg font-medium hover:bg-green-primary/90 transition-colors"
           >
-            {isReturning ? "Log in" : "Send magic link"}
+            {isReturning ? "Log in" : "Begin a new sky"}
           </button>
         </form>
       </div>
