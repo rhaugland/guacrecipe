@@ -34,6 +34,13 @@ type WeatherInfo = {
   connected: boolean;
 };
 
+type PopoverTask = {
+  id: string;
+  title: string;
+  dueDate: string;
+  status: string;
+};
+
 // Severity gating: "none" => normal, "warn" => soft banner, "block" => stronger banner + confirm modal
 function gatingFor(code: string | null): "none" | "warn" | "block" {
   if (code === "rainy") return "warn";
@@ -84,9 +91,10 @@ type IntelligencePopoverProps = {
   onClose: () => void;
   channelsNode: React.ReactNode;
   paused: boolean;
+  tasks: PopoverTask[];
 };
 
-function IntelligencePopover({ selected, intelligence, onClose, channelsNode, paused }: IntelligencePopoverProps) {
+function IntelligencePopover({ selected, intelligence, onClose, channelsNode, paused, tasks }: IntelligencePopoverProps) {
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
@@ -108,6 +116,40 @@ function IntelligencePopover({ selected, intelligence, onClose, channelsNode, pa
             <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-red-100 text-red-600">Paused</span>
           )}
         </div>
+
+        {/* Open tasks assigned to this contact */}
+        {tasks.length > 0 && (
+          <div className="mb-3 pb-3 border-b border-gray-100">
+            <p className="text-[10px] uppercase tracking-wide text-gray-400 mb-2">Open Tasks</p>
+            <div className="space-y-1.5">
+              {tasks.map((t) => {
+                const due = new Date(t.dueDate + "T00:00:00Z");
+                const now = new Date();
+                const diffMs = due.getTime() - now.getTime();
+                const isOverdue = diffMs < 0;
+                const isDueSoon = !isOverdue && diffMs < 86400000;
+                const duePillClass = isOverdue
+                  ? "bg-red-50 text-red-600"
+                  : isDueSoon
+                    ? "bg-amber-50 text-amber-700"
+                    : "bg-gray-100 text-gray-600";
+                return (
+                  <div key={t.id} className="flex items-center justify-between gap-2">
+                    <span className="text-sm text-gray-700 truncate flex-1">{t.title}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap ${duePillClass}`}>
+                      {due.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            {tasks.length >= 5 && (
+              <a href="/dashboard/tasks" className="text-[10px] text-green-primary font-medium mt-1.5 block">
+                View all →
+              </a>
+            )}
+          </div>
+        )}
 
         <p className="text-xs text-gray-400 mb-3">
           Avg response time for {selected.name} by channel
@@ -190,6 +232,7 @@ export default function ChatPage() {
   const [broadcastResult, setBroadcastResult] = useState<{ sent: number; total: number } | null>(null);
   const [intelligence, setIntelligence] = useState<ChannelIntelligence | null>(null);
   const [showIntelligence, setShowIntelligence] = useState(false);
+  const [contactTasks, setContactTasks] = useState<PopoverTask[]>([]);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [weatherByUser, setWeatherByUser] = useState<Record<string, WeatherInfo>>({});
   const [stormConfirmed, setStormConfirmed] = useState<Set<string>>(new Set());
@@ -464,6 +507,7 @@ export default function ChatPage() {
     setMobileView("chat");
     setIntelligence(null);
     setShowIntelligence(false);
+    setContactTasks([]);
     // Mark as read and clear badge
     const key = `${contact.workspaceId}:${contact.id}`;
     setUnreadCounts((prev) => { const next = { ...prev }; delete next[key]; return next; });
@@ -473,6 +517,10 @@ export default function ChatPage() {
     api.messages.intelligence(contact.workspaceId, contact.id)
       .then((data) => setIntelligence(data.intelligence))
       .catch(() => {});
+    // Load open tasks assigned to this contact
+    api.tasks.list(contact.workspaceId, "assignee", "open", contact.id)
+      .then((data) => setContactTasks(Array.isArray(data) ? (data as PopoverTask[]).slice(0, 5) : []))
+      .catch(() => setContactTasks([]));
   };
 
   const handleBroadcast = async (e: React.FormEvent) => {
@@ -779,6 +827,7 @@ export default function ChatPage() {
             onClose={() => setShowIntelligence(false)}
             channelsNode={<ChannelTags channels={getChannels(selected)} />}
             paused={!selected.notificationsEnabled}
+            tasks={contactTasks}
           />
         )}
       </div>
