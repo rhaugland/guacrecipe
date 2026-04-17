@@ -140,8 +140,8 @@ export const api = {
     sync: () => request<{ count: number; date: string; source: string }>("/api/google/sync", { method: "POST" }),
   },
   tasks: {
-    list: (workspaceId: string, role: string, status: string) =>
-      request<{ tasks: Record<string, unknown>[] }>(`/api/tasks?workspaceId=${encodeURIComponent(workspaceId)}&role=${encodeURIComponent(role)}&status=${encodeURIComponent(status)}`),
+    list: (workspaceId: string, role: string, status: string, assigneeId?: string) =>
+      request<Record<string, unknown>[]>(`/api/tasks?workspaceId=${encodeURIComponent(workspaceId)}&role=${encodeURIComponent(role)}&status=${encodeURIComponent(status)}${assigneeId ? `&assigneeId=${encodeURIComponent(assigneeId)}` : ""}`),
     create: (data: { workspaceId: string; title: string; description: string | null; assigneeId: string; dueDate: string }) =>
       request<{ task: Record<string, unknown> }>("/api/tasks", { method: "POST", body: JSON.stringify(data) }),
     update: (taskId: string, data: { status: string }) =>

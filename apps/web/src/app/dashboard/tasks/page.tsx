@@ -67,8 +67,8 @@ export default function TasksPage() {
         api.tasks.list(workspaceId, role, "open"),
         api.tasks.list(workspaceId, role, "done"),
       ]);
-      setOpenTasks((openData.tasks as unknown as Task[]) ?? []);
-      setDoneTasks((doneData.tasks as unknown as Task[]) ?? []);
+      setOpenTasks((openData as unknown as Task[]) ?? []);
+      setDoneTasks((doneData as unknown as Task[]) ?? []);
     } catch (err) {
       console.error("[tasks] fetch failed", err);
       setOpenTasks([]);

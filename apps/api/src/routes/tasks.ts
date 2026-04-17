@@ -155,9 +155,16 @@ tasksRouter.get("/", async (c) => {
 
     if (!userMap.has(userId)) return c.json({ error: "Not a member of this workspace" }, 403);
 
-    const roleFilter = role === "creator"
-      ? eq(tasks.createdBy, userId)
-      : eq(tasks.assigneeId, userId);
+    const assigneeIdParam = c.req.query("assigneeId");
+
+    let roleFilter;
+    if (assigneeIdParam) {
+      roleFilter = eq(tasks.assigneeId, assigneeIdParam);
+    } else {
+      roleFilter = role === "creator"
+        ? eq(tasks.createdBy, userId)
+        : eq(tasks.assigneeId, userId);
+    }
 
     const conditions = [eq(tasks.workspaceId, workspaceId), roleFilter];
     if (status !== "all") {
