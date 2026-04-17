@@ -33,7 +33,7 @@ async function notifyWeatherAware(args: {
         senderId: args.senderId,
         recipientId: args.recipientId,
         body: args.body,
-        condition: "task_notification",
+        condition: "recipient_sunny",
         status: "pending",
       });
     }
@@ -80,6 +80,11 @@ tasksRouter.post("/", async (c) => {
 
   if (!title?.trim()) return c.json({ error: "Title is required" }, 400);
   if (!workspaceId || !assigneeId || !dueDate) return c.json({ error: "workspaceId, assigneeId, and dueDate are required" }, 400);
+  const dueDateParsed = new Date(dueDate + "T00:00:00Z");
+  if (isNaN(dueDateParsed.getTime())) return c.json({ error: "Invalid due date" }, 400);
+  const startOfToday = new Date();
+  startOfToday.setUTCHours(0, 0, 0, 0);
+  if (dueDateParsed.getTime() < startOfToday.getTime()) return c.json({ error: "Due date must be today or in the future" }, 400);
 
   // Validate both creator and assignee are workspace members
   try {
@@ -141,6 +146,15 @@ tasksRouter.get("/", async (c) => {
   }
 
   try {
+    // Verify membership before fetching task data
+    const wsMembers = await db.select({ id: users.id, name: users.name, email: users.email })
+      .from(users)
+      .innerJoin(workspaceMembers, eq(users.id, workspaceMembers.userId))
+      .where(eq(workspaceMembers.workspaceId, workspaceId));
+    const userMap = new Map(wsMembers.map((u) => [u.id, u]));
+
+    if (!userMap.has(userId)) return c.json({ error: "Not a member of this workspace" }, 403);
+
     const roleFilter = role === "creator"
       ? eq(tasks.createdBy, userId)
       : eq(tasks.assigneeId, userId);
@@ -165,15 +179,6 @@ tasksRouter.get("/", async (c) => {
       .from(tasks)
       .where(and(...conditions))
       .orderBy(status === "done" ? desc(tasks.completedAt) : asc(tasks.dueDate));
-
-    // Fetch all users in the workspace and build a lookup map
-    const wsMembers = await db.select({ id: users.id, name: users.name, email: users.email })
-      .from(users)
-      .innerJoin(workspaceMembers, eq(users.id, workspaceMembers.userId))
-      .where(eq(workspaceMembers.workspaceId, workspaceId));
-    const userMap = new Map(wsMembers.map((u) => [u.id, u]));
-
-    if (!userMap.has(userId)) return c.json({ error: "Not a member of this workspace" }, 403);
 
     const tasksWithNames = rows.map((t) => ({
       ...t,
@@ -219,7 +224,14 @@ tasksRouter.patch("/:id", async (c) => {
     const updates: Record<string, unknown> = {};
     if (body.title && isCreator) updates.title = (body.title as string).trim();
     if (body.description !== undefined && isCreator) updates.description = body.description ? (body.description as string).trim() || null : null;
-    if (body.dueDate && isCreator) updates.dueDate = body.dueDate as string;
+    if (body.dueDate && isCreator) {
+      const dueDateParsed = new Date((body.dueDate as string) + "T00:00:00Z");
+      if (isNaN(dueDateParsed.getTime())) return c.json({ error: "Invalid due date" }, 400);
+      const startOfToday = new Date();
+      startOfToday.setUTCHours(0, 0, 0, 0);
+      if (dueDateParsed.getTime() < startOfToday.getTime()) return c.json({ error: "Due date must be today or in the future" }, 400);
+      updates.dueDate = body.dueDate as string;
+    }
 
     // Status transition to "done"
     if (body.status === "done" && existing.status !== "done") {
@@ -229,14 +241,18 @@ tasksRouter.patch("/:id", async (c) => {
       await db.update(taskNotifications)
         .set({ sent: true })
         .where(and(eq(taskNotifications.taskId, taskId), eq(taskNotifications.sent, false)));
-      const [assigneeUser] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId));
+      // Always use assignee's name/id for the completion notification
+      const [assigneeUser] = await db.select({ name: users.name }).from(users).where(eq(users.id, existing.assigneeId));
       const assigneeName = assigneeUser?.name ?? "Someone";
-      await notifyWeatherAware({
-        workspaceId: existing.workspaceId,
-        senderId: userId,
-        recipientId: existing.createdBy,
-        body: `${assigneeName} completed: ${existing.title}`,
-      });
+      // Skip self-notification if assignee is the creator
+      if (existing.assigneeId !== existing.createdBy) {
+        await notifyWeatherAware({
+          workspaceId: existing.workspaceId,
+          senderId: existing.assigneeId,
+          recipientId: existing.createdBy,
+          body: `${assigneeName} completed: ${existing.title}`,
+        });
+      }
     }
 
     // Due date change: reschedule reminders
