@@ -1,11 +1,78 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+
+const HOW_IT_WORKS = [
+  {
+    title: "Chat",
+    emoji: "💬",
+    body: "Send messages to anyone in your workspace. Each person receives your message on their preferred channel — Email, SMS, Discord, Slack, or Telegram. If they're slammed (stormy weather), you'll be warned before sending so you can queue it for when they're free.",
+  },
+  {
+    title: "Broadcast",
+    emoji: "📢",
+    body: "Send one message to your entire workspace at once. Every member gets it delivered on their preferred channel automatically. Perfect for announcements, updates, or check-ins — no need to message people one by one.",
+  },
+  {
+    title: "Tasks",
+    emoji: "✅",
+    body: "Assign tasks to anyone in your workspace. They'll be notified on their preferred channel when assigned, reminded before the due date based on their timing preferences, and you'll be notified when they mark it complete. Everything respects their weather status — notifications queue when they're busy.",
+  },
+];
+
+function HowItWorksModal({ onClose }: { onClose: () => void }) {
+  const [open, setOpen] = useState<number | null>(null);
+  return (
+    <div className="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl max-w-md w-full shadow-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 pt-5 pb-3 flex items-center justify-between">
+          <h3 className="text-lg font-bold text-gray-900">How It Works</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors" aria-label="Close">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="px-5 pb-5 space-y-2">
+          {HOW_IT_WORKS.map((item, i) => {
+            const isOpen = open === i;
+            return (
+              <div key={item.title} className="rounded-xl border border-gray-100 overflow-hidden">
+                <button
+                  onClick={() => setOpen(isOpen ? null : i)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="text-lg">{item.emoji}</span>
+                    <span className="text-sm font-semibold text-gray-800">{item.title}</span>
+                  </span>
+                  <svg
+                    className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {isOpen && (
+                  <div className="px-4 pb-3">
+                    <p className="text-sm text-gray-600 leading-relaxed">{item.body}</p>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 type Props = { userName: string; onLogout: () => void; taskCount?: number };
 
 export function Header({ userName, onLogout, taskCount }: Props) {
   const pathname = usePathname();
+  const [showHelp, setShowHelp] = useState(false);
 
   const tabs = [
     { label: "Weather", href: "/dashboard" },
@@ -24,6 +91,17 @@ export function Header({ userName, onLogout, taskCount }: Props) {
         </div>
         <div className="flex items-center gap-2 md:gap-3">
           <span className="text-gray-600 text-sm hidden sm:inline">{userName}</span>
+          <button
+            onClick={() => setShowHelp(true)}
+            aria-label="How it works"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-green-primary hover:bg-gray-100 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <circle cx="12" cy="12" r="10" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
+              <circle cx="12" cy="17" r="0.5" fill="currentColor" />
+            </svg>
+          </button>
           <Link
             href="/dashboard/settings"
             aria-label="Settings"
@@ -74,6 +152,7 @@ export function Header({ userName, onLogout, taskCount }: Props) {
           );
         })}
       </div>
+      {showHelp && <HowItWorksModal onClose={() => setShowHelp(false)} />}
     </header>
   );
 }
