@@ -247,6 +247,13 @@ export default function ChatPage() {
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // /task quick-assign state
+  const [showTaskForm, setShowTaskForm] = useState(false);
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDueDate, setTaskDueDate] = useState("");
+  const [taskCreating, setTaskCreating] = useState(false);
+  const [taskBanner, setTaskBanner] = useState<string | null>(null);
+
   const loadContacts = useCallback(async () => {
     if (!user) return;
     const allContacts: Contact[] = [];
@@ -482,6 +489,17 @@ export default function ChatPage() {
   const handleSend = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     if (!draft.trim() || !selected || sending) return;
+
+    // /task command — open inline task form instead of sending
+    if (draft.trim().startsWith("/task")) {
+      const titleFromDraft = draft.trim().slice(5).trim();
+      setTaskTitle(titleFromDraft);
+      setTaskDueDate("");
+      setShowTaskForm(true);
+      setDraft("");
+      return;
+    }
+
     const w = weatherByUser[selected.id];
     const gating = gatingFor(w?.code ?? null);
     // Storm: confirm modal once per session per recipient
@@ -499,6 +517,36 @@ export default function ChatPage() {
     await sendMessage();
   };
 
+  const handleTaskCreate = async () => {
+    if (!taskTitle.trim() || !taskDueDate || !selected || taskCreating) return;
+    setTaskCreating(true);
+    try {
+      await api.tasks.create({
+        workspaceId: selected.workspaceId,
+        assigneeId: selected.id,
+        title: taskTitle.trim(),
+        description: null,
+        dueDate: taskDueDate,
+      });
+      setShowTaskForm(false);
+      setTaskTitle("");
+      setTaskDueDate("");
+      setTaskBanner(`Task assigned to ${selected.name ?? "contact"}`);
+      setTimeout(() => setTaskBanner(null), 3000);
+    } catch (err) {
+      console.error("[chat] task create failed", err);
+    } finally {
+      setTaskCreating(false);
+    }
+  };
+
+  const handleTaskCancel = () => {
+    setDraft(`/task ${taskTitle}`);
+    setShowTaskForm(false);
+    setTaskTitle("");
+    setTaskDueDate("");
+  };
+
   const handleSelectContact = (contact: Contact) => {
     setSelected(contact);
     setShowNewChat(false);
@@ -508,6 +556,8 @@ export default function ChatPage() {
     setIntelligence(null);
     setShowIntelligence(false);
     setContactTasks([]);
+    setShowTaskForm(false);
+    setTaskBanner(null);
     // Mark as read and clear badge
     const key = `${contact.workspaceId}:${contact.id}`;
     setUnreadCounts((prev) => { const next = { ...prev }; delete next[key]; return next; });
@@ -933,6 +983,53 @@ export default function ChatPage() {
           </div>
         );
       })()}
+
+      {/* Task quick-assign banner */}
+      {taskBanner && (
+        <div className="mx-4 md:mx-6 mb-2 px-3 py-2 rounded-xl bg-green-primary/10 text-green-primary text-xs font-medium text-center">
+          {taskBanner}
+        </div>
+      )}
+
+      {/* /task inline form */}
+      {showTaskForm && selected && (
+        <div className="mx-3 md:mx-6 mb-2 bg-white rounded-2xl shadow-lg border border-gray-100 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-semibold text-gray-800">Quick Task</h4>
+            <span className="text-xs text-gray-400">for {selected.name ?? "contact"}</span>
+          </div>
+          <input
+            type="text"
+            value={taskTitle}
+            onChange={(e) => setTaskTitle(e.target.value)}
+            placeholder="Task title"
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 mb-2"
+            autoFocus
+          />
+          <input
+            type="date"
+            value={taskDueDate}
+            onChange={(e) => setTaskDueDate(e.target.value)}
+            min={new Date().toISOString().split("T")[0]}
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-green-primary/30 mb-3 text-gray-700"
+          />
+          <div className="flex items-center justify-between">
+            <button
+              onClick={handleTaskCancel}
+              className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleTaskCreate}
+              disabled={!taskTitle.trim() || !taskDueDate || taskCreating}
+              className="px-4 py-2 rounded-full bg-green-primary text-white text-sm font-medium disabled:opacity-50 transition-colors"
+            >
+              {taskCreating ? "Creating..." : "Create"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Input — desktop */}
       <form onSubmit={handleSend} className="hidden md:block px-6 py-3 border-t border-gray-100 bg-white">
