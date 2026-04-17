@@ -47,7 +47,7 @@ app.route("/api/weather", weatherRouter);
 app.route("/api/google", googleRouter);
 app.route("/api/tasks", tasksRouter);
 
-serve({ fetch: app.fetch, port: 3002 }, (info) => {
+serve({ fetch: app.fetch, port: Number(process.env.PORT) || 3002 }, (info) => {
   console.log(`Guac API running on http://localhost:${info.port}`);
   startDiscordGateway();
 });
