@@ -139,6 +139,16 @@ export const api = {
     disconnect: () => request("/api/google/disconnect", { method: "POST" }),
     sync: () => request<{ count: number; date: string; source: string }>("/api/google/sync", { method: "POST" }),
   },
+  tasks: {
+    list: (workspaceId: string, role: string, status: string) =>
+      request<{ tasks: Record<string, unknown>[] }>(`/api/tasks?workspaceId=${encodeURIComponent(workspaceId)}&role=${encodeURIComponent(role)}&status=${encodeURIComponent(status)}`),
+    create: (data: { workspaceId: string; title: string; description: string | null; assigneeId: string; dueDate: string }) =>
+      request<{ task: Record<string, unknown> }>("/api/tasks", { method: "POST", body: JSON.stringify(data) }),
+    update: (taskId: string, data: { status: string }) =>
+      request<{ task: Record<string, unknown> }>(`/api/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify(data) }),
+    delete: (taskId: string) =>
+      request<{ ok: true }>(`/api/tasks/${taskId}`, { method: "DELETE" }),
+  },
   messages: {
     send: (data: { workspaceId: string; recipientId: string; body: string }) =>
       request("/api/messages/send", { method: "POST", body: JSON.stringify(data) }),

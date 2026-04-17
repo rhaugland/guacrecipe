@@ -63,37 +63,16 @@ export default function TasksPage() {
   const fetchTasks = useCallback(async () => {
     if (!workspaceId) return;
     try {
-      const [openRes, doneRes] = await Promise.all([
-        fetch(`/api/tasks?workspaceId=${workspaceId}&role=${role}&status=open`, {
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-            ...(typeof window !== "undefined" && localStorage.getItem("guac_session")
-              ? { Authorization: `Bearer ${localStorage.getItem("guac_session")}` }
-              : {}),
-          },
-        }),
-        fetch(`/api/tasks?workspaceId=${workspaceId}&role=${role}&status=done`, {
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-            ...(typeof window !== "undefined" && localStorage.getItem("guac_session")
-              ? { Authorization: `Bearer ${localStorage.getItem("guac_session")}` }
-              : {}),
-          },
-        }),
+      const [openData, doneData] = await Promise.all([
+        api.tasks.list(workspaceId, role, "open"),
+        api.tasks.list(workspaceId, role, "done"),
       ]);
-
-      if (openRes.ok) {
-        const openData = await openRes.json() as { tasks: Task[] };
-        setOpenTasks(openData.tasks ?? []);
-      }
-      if (doneRes.ok) {
-        const doneData = await doneRes.json() as { tasks: Task[] };
-        setDoneTasks(doneData.tasks ?? []);
-      }
+      setOpenTasks((openData.tasks as unknown as Task[]) ?? []);
+      setDoneTasks((doneData.tasks as unknown as Task[]) ?? []);
     } catch (err) {
       console.error("[tasks] fetch failed", err);
+      setOpenTasks([]);
+      setDoneTasks([]);
     } finally {
       setLoading(false);
     }
@@ -106,35 +85,17 @@ export default function TasksPage() {
     }
   }, [workspaceId, role, fetchTasks]);
 
-  const getAuthHeaders = (): Record<string, string> => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("guac_session") : null;
-    return {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-  };
-
   const handleCreate = async () => {
     if (!workspaceId || !newTitle.trim() || !newAssigneeId || !newDueDate) return;
     setCreating(true);
     try {
-      const res = await fetch("/api/tasks", {
-        method: "POST",
-        credentials: "include",
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          workspaceId,
-          title: newTitle.trim(),
-          description: newDescription.trim() || null,
-          assigneeId: newAssigneeId,
-          dueDate: newDueDate,
-        }),
+      await api.tasks.create({
+        workspaceId,
+        title: newTitle.trim(),
+        description: newDescription.trim() || null,
+        assigneeId: newAssigneeId,
+        dueDate: newDueDate,
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Failed to create task" }));
-        console.error("[tasks] create failed", err);
-        return;
-      }
       setShowCreateForm(false);
       setNewTitle("");
       setNewDescription("");
@@ -150,17 +111,7 @@ export default function TasksPage() {
 
   const handleComplete = async (taskId: string) => {
     try {
-      const res = await fetch(`/api/tasks/${taskId}`, {
-        method: "PATCH",
-        credentials: "include",
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ status: "done" }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Failed to complete task" }));
-        console.error("[tasks] complete failed", err);
-        return;
-      }
+      await api.tasks.update(taskId, { status: "done" });
       await fetchTasks();
     } catch (err) {
       console.error("[tasks] complete error", err);
@@ -169,16 +120,7 @@ export default function TasksPage() {
 
   const handleDelete = async (taskId: string) => {
     try {
-      const res = await fetch(`/api/tasks/${taskId}`, {
-        method: "DELETE",
-        credentials: "include",
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Failed to delete task" }));
-        console.error("[tasks] delete failed", err);
-        return;
-      }
+      await api.tasks.delete(taskId);
       setExpandedTaskId(null);
       await fetchTasks();
     } catch (err) {
@@ -186,11 +128,11 @@ export default function TasksPage() {
     }
   };
 
-  const userId = user?.id ?? null;
-
   if (!user) {
     return <div className="text-green-primary text-lg text-center py-8">Loading...</div>;
   }
+
+  const userId = user.id;
 
   return (
     <div className="flex flex-col h-full bg-[#F2F2F7]">
