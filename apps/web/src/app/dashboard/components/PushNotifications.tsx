@@ -29,7 +29,7 @@ function isStandalone(): boolean {
   return window.matchMedia?.("(display-mode: standalone)").matches ?? false;
 }
 
-export function PushNotifications() {
+export function PushNotifications({ inline = false }: { inline?: boolean }) {
   const [permission, setPermission] = useState<NotificationPermission>("default");
   const [subscribed, setSubscribed] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -149,42 +149,36 @@ export function PushNotifications() {
     }
   };
 
+  let content: React.ReactNode;
+
   if (needsHomeScreen) {
-    return (
-      <CollapsibleCard title="Push Notifications">
-        <div className="py-4">
-          <p className="text-sm text-gray-600 mb-2">
-            To get push notifications on iPhone, add New Sky to your home screen first.
-          </p>
-          <p className="text-xs text-gray-400">
-            Tap the share icon <span aria-label="share">⎙</span> in Safari, then &quot;Add to Home Screen&quot;. Then open New Sky from the home screen icon and come back here.
-          </p>
-        </div>
-      </CollapsibleCard>
+    content = (
+      <div className={inline ? "" : "py-4"}>
+        <p className="text-sm text-gray-600 mb-2">
+          To get push notifications on iPhone, add New Sky to your home screen first.
+        </p>
+        <p className="text-xs text-gray-400">
+          Tap the share icon <span aria-label="share">⎙</span> in Safari, then &quot;Add to Home Screen&quot;. Then open New Sky from the home screen icon and come back here.
+        </p>
+      </div>
     );
-  }
-
-  if (!supported) {
-    return (
-      <CollapsibleCard title="Push Notifications">
-        <div className="py-4">
-          <p className="text-sm text-gray-600">
-            Your browser doesn&apos;t support push notifications. Try Chrome, Safari 16.4+, or Firefox.
-          </p>
-        </div>
-      </CollapsibleCard>
+  } else if (!supported) {
+    content = (
+      <div className={inline ? "" : "py-4"}>
+        <p className="text-sm text-gray-600">
+          Your browser doesn&apos;t support push notifications. Try Chrome, Safari 16.4+, or Firefox.
+        </p>
+      </div>
     );
-  }
+  } else {
+    const statusText = subscribed
+      ? "Push notifications are on. You'll get alerts when someone sends you a message."
+      : permission === "denied"
+        ? "Notifications are blocked. Allow them in your browser settings, then come back here."
+        : "Get a push alert when someone sends you a message.";
 
-  const statusText = subscribed
-    ? "Push notifications are on. You'll get alerts when someone sends you a message."
-    : permission === "denied"
-      ? "Notifications are blocked. Allow them in your browser settings, then come back here."
-      : "Get a push alert when someone sends you a message.";
-
-  return (
-    <CollapsibleCard title="Push Notifications">
-      <div className="py-4">
+    content = (
+      <div className={inline ? "" : "py-4"}>
         <div className="flex items-center justify-between gap-3">
           <div className="flex-1">
             <p className="text-sm text-gray-600">{statusText}</p>
@@ -212,6 +206,21 @@ export function PushNotifications() {
           </p>
         )}
       </div>
+    );
+  }
+
+  if (inline) {
+    return (
+      <>
+        <h3 className="text-sm font-medium text-gray-700 mb-2">Push Notifications</h3>
+        {content}
+      </>
+    );
+  }
+
+  return (
+    <CollapsibleCard title="Push Notifications">
+      {content}
     </CollapsibleCard>
   );
 }

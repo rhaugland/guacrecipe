@@ -2,6 +2,7 @@
 import type { Preferences } from "../../../lib/types";
 import { CollapsibleCard } from "./CollapsibleCard";
 import { GoogleCalendar } from "./GoogleCalendar";
+import { PushNotifications } from "./PushNotifications";
 
 const CHANNEL_OPTIONS = [
   { value: "email", label: "Email" },
@@ -142,6 +143,11 @@ export function CommunicationPrefs({ prefs, onUpdate }: Props) {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Push Notifications */}
+      <div className="py-4 border-t border-gray-100">
+        <PushNotifications inline />
       </div>
 
       {/* Google Calendar */}
