@@ -10,7 +10,7 @@ type GoogleStatus = {
   configured: boolean;
 };
 
-export function GoogleCalendar() {
+export function GoogleCalendar({ inline = false }: { inline?: boolean }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [status, setStatus] = useState<GoogleStatus | null>(null);
@@ -75,58 +75,69 @@ export function GoogleCalendar() {
     }
   };
 
-  return (
-    <CollapsibleCard title="Google Calendar">
-      {loading ? (
-        <p className="text-xs text-gray-400">Loading…</p>
+  const content = loading ? (
+    <p className="text-xs text-gray-400">Loading…</p>
+  ) : (
+    <>
+      {banner && (
+        <div className={`mb-3 rounded-lg px-3 py-2 text-xs ${banner.kind === "ok" ? "bg-sky-light/60 text-green-primary" : "bg-red-50 text-red-600"}`}>
+          {banner.text}
+        </div>
+      )}
+
+      {status?.connected ? (
+        <>
+          <p className="text-xs text-gray-500 mb-3 truncate">
+            Connected as <span className="font-medium text-gray-700">{status.email ?? "your Google account"}</span>
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={sync}
+              disabled={syncing}
+              className="px-4 py-2 rounded-full bg-green-primary text-white text-xs font-medium hover:opacity-90 transition disabled:opacity-50"
+            >
+              {syncing ? "Syncing..." : "Sync today"}
+            </button>
+            <button
+              onClick={disconnect}
+              className="px-4 py-2 rounded-full bg-gray-100 text-gray-600 text-xs font-medium hover:bg-gray-200 transition"
+            >
+              Disconnect
+            </button>
+          </div>
+        </>
+      ) : status?.configured === false ? (
+        <p className="text-xs text-gray-400">
+          Calendar integration isn&apos;t configured on this server yet.
+        </p>
       ) : (
         <>
-          {banner && (
-            <div className={`mb-3 rounded-lg px-3 py-2 text-xs ${banner.kind === "ok" ? "bg-sky-light/60 text-green-primary" : "bg-red-50 text-red-600"}`}>
-              {banner.text}
-            </div>
-          )}
-
-          {status?.connected ? (
-            <>
-              <p className="text-xs text-gray-500 mb-3 truncate">
-                Connected as <span className="font-medium text-gray-700">{status.email ?? "your Google account"}</span>
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={sync}
-                  disabled={syncing}
-                  className="px-4 py-2 rounded-full bg-green-primary text-white text-xs font-medium hover:opacity-90 transition disabled:opacity-50"
-                >
-                  {syncing ? "Syncing..." : "Sync today"}
-                </button>
-                <button
-                  onClick={disconnect}
-                  className="px-4 py-2 rounded-full bg-gray-100 text-gray-600 text-xs font-medium hover:bg-gray-200 transition"
-                >
-                  Disconnect
-                </button>
-              </div>
-            </>
-          ) : status?.configured === false ? (
-            <p className="text-xs text-gray-400">
-              Calendar integration isn&apos;t configured on this server yet.
-            </p>
-          ) : (
-            <>
-              <p className="text-xs text-gray-500 mb-3">
-                Auto-update your weather forecast from your primary calendar.
-              </p>
-              <button
-                onClick={connect}
-                className="px-4 py-2 rounded-full bg-green-primary text-white text-xs font-medium hover:opacity-90 transition"
-              >
-                Connect Google Calendar
-              </button>
-            </>
-          )}
+          <p className="text-xs text-gray-500 mb-3">
+            Auto-update your weather forecast from your primary calendar.
+          </p>
+          <button
+            onClick={connect}
+            className="px-4 py-2 rounded-full bg-green-primary text-white text-xs font-medium hover:opacity-90 transition"
+          >
+            Connect Google Calendar
+          </button>
         </>
       )}
+    </>
+  );
+
+  if (inline) {
+    return (
+      <>
+        <h3 className="text-sm font-medium text-gray-700 mb-2">Google Calendar</h3>
+        {content}
+      </>
+    );
+  }
+
+  return (
+    <CollapsibleCard title="Google Calendar">
+      {content}
     </CollapsibleCard>
   );
 }
