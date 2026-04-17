@@ -2,9 +2,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-type Props = { userName: string; onLogout: () => void };
+type Props = { userName: string; onLogout: () => void; taskCount?: number };
 
-export function Header({ userName, onLogout }: Props) {
+export function Header({ userName, onLogout, taskCount }: Props) {
   const pathname = usePathname();
 
   const tabs = [
@@ -58,7 +58,18 @@ export function Header({ userName, onLogout }: Props) {
                   : "text-gray-500 hover:bg-gray-100"
               }`}
             >
-              {tab.label}
+              <span className="relative inline-flex items-center gap-1">
+                {tab.label}
+                {tab.label === "Tasks" && taskCount != null && taskCount > 0 && (
+                  <span className={`inline-flex items-center justify-center text-[10px] font-bold min-w-[18px] h-[18px] rounded-full px-1 leading-none ${
+                    isActive
+                      ? "bg-white text-green-primary"
+                      : "bg-green-primary text-white"
+                  }`}>
+                    {taskCount > 99 ? "99+" : taskCount}
+                  </span>
+                )}
+              </span>
             </Link>
           );
         })}
