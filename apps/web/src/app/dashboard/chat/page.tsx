@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "../../../hooks/useAuth";
 import { useWorkspaces } from "../../../hooks/useWorkspaces";
@@ -144,9 +145,9 @@ function IntelligencePopover({ selected, intelligence, onClose, channelsNode, pa
               })}
             </div>
             {tasks.length >= 5 && (
-              <a href="/dashboard/tasks" className="text-[10px] text-green-primary font-medium mt-1.5 block">
+              <Link href="/dashboard/tasks" className="text-[10px] text-green-primary font-medium mt-1.5 block">
                 View all →
-              </a>
+              </Link>
             )}
           </div>
         )}
@@ -491,8 +492,8 @@ export default function ChatPage() {
     if (!draft.trim() || !selected || sending) return;
 
     // /task command — open inline task form instead of sending
-    if (draft.trim().startsWith("/task")) {
-      const titleFromDraft = draft.trim().slice(5).trim();
+    if (draft.trim().startsWith("/task ") || draft.trim() === "/task") {
+      const titleFromDraft = draft.trim() === "/task" ? "" : draft.trim().slice(6).trim();
       setTaskTitle(titleFromDraft);
       setTaskDueDate("");
       setShowTaskForm(true);
@@ -519,6 +520,14 @@ export default function ChatPage() {
 
   const handleTaskCreate = async () => {
     if (!taskTitle.trim() || !taskDueDate || !selected || taskCreating) return;
+    if (isDemoId(selected.id)) {
+      setShowTaskForm(false);
+      setTaskTitle("");
+      setTaskDueDate("");
+      setTaskBanner(`Task assigned to ${selected.name ?? "contact"}`);
+      setTimeout(() => setTaskBanner(null), 3000);
+      return;
+    }
     setTaskCreating(true);
     try {
       await api.tasks.create({

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "../../hooks/useAuth";
 import { useWorkspaces } from "../../hooks/useWorkspaces";
 import { api } from "../../lib/api-client";
@@ -9,6 +9,7 @@ import { OnboardingTour } from "./components/OnboardingTour";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, loading: authLoading, logout } = useAuth();
   const { workspaces } = useWorkspaces();
   const [showTour, setShowTour] = useState(false);
@@ -39,7 +40,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       if (!cancelled) setTaskCount(total);
     })();
     return () => { cancelled = true; };
-  }, [user, workspaces]);
+  }, [user, workspaces, pathname]);
 
   if (authLoading || !user) {
     return (
