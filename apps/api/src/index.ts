@@ -17,6 +17,7 @@ import cron from "./routes/cron";
 import pushRouter from "./routes/push";
 import weatherRouter from "./routes/weather";
 import googleRouter from "./routes/google";
+import tasksRouter from "./routes/tasks";
 
 const app = new Hono();
 
@@ -44,6 +45,7 @@ app.route("/api/cron", cron);
 app.route("/api/push", pushRouter);
 app.route("/api/weather", weatherRouter);
 app.route("/api/google", googleRouter);
+app.route("/api/tasks", tasksRouter);
 
 serve({ fetch: app.fetch, port: 3002 }, (info) => {
   console.log(`Guac API running on http://localhost:${info.port}`);
