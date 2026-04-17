@@ -1,7 +1,9 @@
 import { Hono } from "hono";
 import { requireAuth } from "../middleware/auth";
-import { db, tasks, taskNotifications, workspaceMembers, users } from "@guac/db";
+import { db, tasks, taskNotifications, workspaceMembers, users, scheduledMessages } from "@guac/db";
 import { eq, and, desc, asc } from "drizzle-orm";
+import { dispatchMessage } from "./messages";
+import { effectiveCodeForUser, SUNNY_CODES } from "../services/scheduled-messages";
 
 type Env = {
   Variables: {
@@ -11,6 +13,33 @@ type Env = {
 
 function isMissingTable(err: unknown): boolean {
   return typeof err === "object" && err !== null && (err as { code?: string }).code === "42P01";
+}
+
+const APP_URL = process.env.APP_URL ?? "https://app.newsky.chat";
+
+async function notifyWeatherAware(args: {
+  workspaceId: string;
+  senderId: string;
+  recipientId: string;
+  body: string;
+}): Promise<void> {
+  try {
+    const code = await effectiveCodeForUser(args.recipientId);
+    if (SUNNY_CODES.has(code)) {
+      await dispatchMessage(args);
+    } else {
+      await db.insert(scheduledMessages).values({
+        workspaceId: args.workspaceId,
+        senderId: args.senderId,
+        recipientId: args.recipientId,
+        body: args.body,
+        condition: "task_notification",
+        status: "pending",
+      });
+    }
+  } catch (err) {
+    console.error("[tasks] notification dispatch failed", err);
+  }
 }
 
 const TIMING_OFFSETS: Record<string, number> = {
@@ -76,6 +105,18 @@ tasksRouter.post("/", async (c) => {
     }).returning();
 
     await scheduleTaskNotifications(task.id, assigneeId as string, dueDate as string);
+
+    const [creator] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId));
+    const creatorName = creator?.name ?? "Someone";
+    const formattedDue = new Date(dueDate + "T00:00:00Z").toLocaleDateString("en-US", {
+      month: "short", day: "numeric", year: "numeric",
+    });
+    await notifyWeatherAware({
+      workspaceId,
+      senderId: userId,
+      recipientId: assigneeId,
+      body: `${creatorName} assigned you a task: ${task.title} (due ${formattedDue})\nView it at ${APP_URL}/dashboard/tasks`,
+    });
 
     return c.json(task, 201);
   } catch (err) {
@@ -188,6 +229,14 @@ tasksRouter.patch("/:id", async (c) => {
       await db.update(taskNotifications)
         .set({ sent: true })
         .where(and(eq(taskNotifications.taskId, taskId), eq(taskNotifications.sent, false)));
+      const [assigneeUser] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId));
+      const assigneeName = assigneeUser?.name ?? "Someone";
+      await notifyWeatherAware({
+        workspaceId: existing.workspaceId,
+        senderId: userId,
+        recipientId: existing.createdBy,
+        body: `${assigneeName} completed: ${existing.title}`,
+      });
     }
 
     // Due date change: reschedule reminders
