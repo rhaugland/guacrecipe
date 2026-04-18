@@ -5,6 +5,11 @@ import { usePathname } from "next/navigation";
 
 const HOW_IT_WORKS = [
   {
+    title: "Weather",
+    emoji: "🌤️",
+    body: "Your weather reflects how available you are. Sunny means you're free — messages come through instantly. Cloudy means you're busy — only urgent messages get through. Stormy means do not disturb — everything queues until you're free. Your teammates see your weather before they message you, so they can decide to send now or wait.",
+  },
+  {
     title: "Chat",
     emoji: "💬",
     body: "Send messages to anyone in your workspace. Each person receives your message on their preferred channel — Email, SMS, Discord, Slack, or Telegram. If they're slammed (stormy weather), you'll be warned before sending so you can queue it for when they're free.",
@@ -18,6 +23,16 @@ const HOW_IT_WORKS = [
     title: "Tasks",
     emoji: "✅",
     body: "Assign tasks to anyone in your workspace. They'll be notified on their preferred channel when assigned, reminded before the due date based on their timing preferences, and you'll be notified when they mark it complete. Everything respects their weather status — notifications queue when they're busy.",
+  },
+  {
+    title: "Message Routing",
+    emoji: "🔀",
+    body: "You don't need to change how you communicate. Reply from Slack, Discord, Telegram, Email, or SMS — New Sky routes it back to the sender automatically. Your teammates pick their preferred channel too. Everyone talks where they're comfortable, and New Sky handles the rest.",
+  },
+  {
+    title: "Don't want to use New Sky?",
+    emoji: "👋",
+    body: "Totally fine! You can keep using your favorite apps exactly as you do now. When someone in your workspace messages you through New Sky, it shows up on whatever channel you've set — Slack, Discord, Email, whatever. Just reply there like normal. No app to install, no habits to change.",
   },
 ];
 
